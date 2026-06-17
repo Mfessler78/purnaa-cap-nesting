@@ -407,11 +407,25 @@ function chooseFolder() {
       cmd = 'osascript'
       args = ['-e', 'POSIX path of (choose folder with prompt "Choose the backup folder")']
     } else if (process.platform === 'win32') {
-      const ps =
-        "Add-Type -AssemblyName System.Windows.Forms; " +
-        "$f = New-Object System.Windows.Forms.FolderBrowserDialog; " +
-        "$f.Description = 'Choose the backup folder'; $f.ShowNewFolderButton = $true; " +
-        "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($f.SelectedPath) }"
+      // The classic FolderBrowserDialog has two traps that make it look "broken":
+      //  1. It opens BEHIND the browser window, so the operator never sees it.
+      //     Fix: give it a hidden, TopMost owner form so it's forced to the front.
+      //  2. Its default tree is rooted at the desktop and buries mapped/network
+      //     drives. Fix: root it at "This PC" (MyComputer) so the P: drive and
+      //     other drives are right there to pick.
+      const ps = [
+        "Add-Type -AssemblyName System.Windows.Forms;",
+        "$owner = New-Object System.Windows.Forms.Form;",
+        "$owner.TopMost = $true; $owner.ShowInTaskbar = $false; $owner.Opacity = 0;",
+        "$owner.Show(); $owner.Activate();",
+        "$f = New-Object System.Windows.Forms.FolderBrowserDialog;",
+        "$f.Description = 'Choose the backup folder (e.g. the P: drive)';",
+        "$f.ShowNewFolderButton = $true;",
+        "$f.RootFolder = [System.Environment+SpecialFolder]::MyComputer;",
+        "$r = $f.ShowDialog($owner);",
+        "$owner.Close();",
+        "if ($r -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($f.SelectedPath) }",
+      ].join(' ')
       cmd = 'powershell'
       args = ['-STA', '-NoProfile', '-Command', ps]
     } else {
