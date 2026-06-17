@@ -18,3 +18,7 @@ dev/
 # Local backup output and machine-local backup state
 backups/
 data/backup.json
+
+# Owner-only publish button — stays on the owner's computer, never shipped to
+# other machines (they only ever UPDATE, they don't publish).
+PUBLISH UPDATE (owner).command
