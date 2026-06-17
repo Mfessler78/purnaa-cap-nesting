@@ -310,11 +310,11 @@ function interiorSpansAtY(poly, y) {
   return spans
 }
 
-// Anchor for the label: midpoint of the widest interior run, scanning from just
-// inside the bottom cut edge upward. Returns {x, y, w} (w = interior width for
-// shrink-to-fit) or null. Walks up a few bands so a thin bottom (visor tip)
-// falls through to a wider run rather than getting no label.
-function pieceLabelAnchor(poly, inset) {
+// Candidate label bands hugging the BOTTOM cut edge, ordered bottom-first. We
+// only scan the lower part of the piece (never the middle), each band the widest
+// interior run at that height, so the label always sits in the seam band right
+// inside the cut line — even for crown (top) panels whose bottom is curved.
+function bottomBands(poly, inset) {
   let minY = Infinity
   let maxY = -Infinity
   for (const [, y] of poly) {
@@ -322,21 +322,20 @@ function pieceLabelAnchor(poly, inset) {
     if (y > maxY) maxY = y
   }
   const h = maxY - minY
-  if (!(h > 0)) return null
-  const bands = [inset, h * 0.12, h * 0.25, h * 0.5].map((d) => minY + Math.min(d, h * 0.5))
-  let best = null
-  for (const y of bands) {
+  if (!(h > 0)) return []
+  const lo = minY + Math.min(inset, h * 0.15)
+  const top = minY + Math.min(h * 0.32, 54) // cap: stay near the edge, never mid-piece
+  const n = 9
+  const bands = []
+  for (let i = 0; i < n; i++) {
+    const y = lo + ((top - lo) * i) / (n - 1)
     let widest = null
     for (const [a, b] of interiorSpansAtY(poly, y)) {
       if (!widest || b - a > widest[1] - widest[0]) widest = [a, b]
     }
-    if (!widest) continue
-    const w = widest[1] - widest[0]
-    if (!best || w > best.w) best = { x: (widest[0] + widest[1]) / 2, y, w }
-    // Good enough run near the bottom edge: take it (keeps the label in the band).
-    if (w > h * 0.15) return best
+    if (widest) bands.push({ y, x: (widest[0] + widest[1]) / 2, w: widest[1] - widest[0] })
   }
-  return best
+  return bands
 }
 
 export async function fillLayout({
@@ -551,7 +550,7 @@ export async function fillLayout({
   const embArt = await out.embedPage(artPage)
   // Font for the piece-ID labels lives in the same doc we draw the sheet on.
   const labelFont = pieceLabels ? await out.embedFont(StandardFonts.Helvetica) : null
-  const LABEL_INSET = 4 * MM_TO_PT // sit ~4 mm inside the bottom cut edge (seam band)
+  const LABEL_INSET = 2 * MM_TO_PT // hug ~2 mm inside the bottom cut edge (seam band)
 
   for (const [type, slots] of slotsByType) {
     const t = templateByType.get(type).box
@@ -597,15 +596,27 @@ export async function fillLayout({
           ]
         }
         const placed = localPoly.map(([px, py]) => map(px, py))
-        const anchor = pieceLabelAnchor(placed, LABEL_INSET)
-        if (anchor) {
-          let size = Math.min(12, anchor.w * 0.4)
-          const maxW = anchor.w * 0.85
-          while (size > 5 && labelFont.widthOfTextAtSize(type, size) > maxW) size -= 0.5
+        const bands = bottomBands(placed, LABEL_INSET)
+        if (bands.length) {
+          let pMinY = Infinity
+          let pMaxY = -Infinity
+          for (const [, py] of placed) {
+            if (py < pMinY) pMinY = py
+            if (py > pMaxY) pMaxY = py
+          }
+          const pieceH = pMaxY - pMinY
+          let size = Math.min(12, Math.max(6, pieceH * 0.05))
+          // Pick the LOWEST band whose run fits the label at `size` (hugs the cut
+          // line); if none fits, take the widest band and shrink to fit it.
+          let chosen = bands.find((b) => labelFont.widthOfTextAtSize(type, size) <= b.w * 0.9)
+          if (!chosen) {
+            chosen = bands.reduce((a, b) => (b.w > a.w ? b : a), bands[0])
+            while (size > 4 && labelFont.widthOfTextAtSize(type, size) > chosen.w * 0.9) size -= 0.5
+          }
           const tw = labelFont.widthOfTextAtSize(type, size)
           page.drawText(type, {
-            x: anchor.x - tw / 2,
-            y: anchor.y,
+            x: chosen.x - tw / 2,
+            y: chosen.y,
             size,
             font: labelFont,
             color: rgb(0, 0, 0),
@@ -657,7 +668,7 @@ export async function fillLayout({
   if (cutMode === 'laser' && dxfPolys.length) {
     const toMm = (v) => (v * factor) / MM_TO_PT
     const contoursMm = dxfPolys.map((poly) => poly.map(([x, y]) => [toMm(x), toMm(y)]))
-    dxf = buildDxf(contoursMm, { lineweight: Math.round(cutLineWidthMm * 100) })
+    dxf = buildDxf(contoursMm, { widthMm: cutLineWidthMm })
   }
 
   return {

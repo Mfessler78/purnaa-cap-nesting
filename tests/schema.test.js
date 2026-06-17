@@ -55,18 +55,28 @@ test('styleCounts reports max slots across modes, first-template pieces, and mod
 
 // ---- DXF writer (U4) ------------------------------------------------------
 
-test('buildDxf emits closed mm LWPOLYLINEs with the 1.5mm lineweight', () => {
+test('buildDxf emits a valid R12 file: closed mm POLYLINEs on the CUT layer, 1.5mm wide', () => {
   const square = [[0, 0], [10, 0], [10, 10], [0, 10]]
-  const dxf = buildDxf([square], { lineweight: 150 })
+  const dxf = buildDxf([square], { widthMm: 1.5 })
   assert.match(dxf, /^0\nSECTION\n2\nHEADER/) // starts with a header
+  assert.match(dxf, /\$ACADVER\n1\nAC1009/) // R12
   assert.match(dxf, /\$INSUNITS\n70\n4/) // millimetres
-  assert.equal((dxf.match(/LWPOLYLINE/g) || []).length, 1)
-  assert.match(dxf, /370\n150/) // 1.5 mm line width (1/100 mm)
-  assert.match(dxf, /90\n4\n70\n1/) // 4 vertices, closed
+  // The four sections AutoCAD expects, in order, then EOF.
+  assert.ok(
+    dxf.indexOf('2\nHEADER') < dxf.indexOf('2\nTABLES') &&
+      dxf.indexOf('2\nTABLES') < dxf.indexOf('2\nBLOCKS') &&
+      dxf.indexOf('2\nBLOCKS') < dxf.indexOf('2\nENTITIES'),
+    'sections out of order',
+  )
+  assert.match(dxf, /2\nLAYER\n70\n2[\s\S]*2\nCUT/) // CUT layer is defined in TABLES
+  assert.equal((dxf.match(/0\nPOLYLINE/g) || []).length, 1)
+  assert.equal((dxf.match(/0\nVERTEX/g) || []).length, 4) // 4 corners
+  assert.match(dxf, /0\nSEQEND/)
+  assert.match(dxf, /70\n1\n40\n1\.5\n41\n1\.5/) // closed + 1.5mm constant width
   assert.match(dxf, /\nEOF\n$/)
 })
 
 test('buildDxf skips degenerate contours and writes one entity per real contour', () => {
   const dxf = buildDxf([[[0, 0]], [[0, 0], [1, 0], [1, 1]]])
-  assert.equal((dxf.match(/LWPOLYLINE/g) || []).length, 1)
+  assert.equal((dxf.match(/0\nPOLYLINE/g) || []).length, 1)
 })
