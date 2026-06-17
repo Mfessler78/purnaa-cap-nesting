@@ -1,0 +1,20 @@
+# Dependencies & portable runtime
+node_modules/
+node/
+
+# Build output
+dist/
+
+# Logs & OS cruft
+*.log
+.DS_Store
+
+# Customer artwork & print layouts — DATA, never to GitHub.
+# Synced between machines via the backup folder (P drive), not git.
+test-files/
+styles/**/*.pdf
+dev/
+
+# Local backup output and machine-local backup state
+backups/
+data/backup.json

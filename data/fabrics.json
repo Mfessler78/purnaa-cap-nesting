@@ -1,0 +1,18 @@
+[
+  {
+    "name": "No stretch",
+    "scale": 100
+  },
+  {
+    "name": "Plain Weave",
+    "scale": 105
+  },
+  {
+    "name": "Sanded Microfiber",
+    "scale": 104
+  },
+  {
+    "name": "Double Sided",
+    "scale": 104
+  }
+]
