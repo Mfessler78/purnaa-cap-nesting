@@ -5,7 +5,7 @@ import zlib from 'node:zlib'
 import { PDFDocument } from 'pdf-lib'
 import {
   fillLayout,
-  roundUpToSheet,
+  roundDownToSheet,
   anchorFor,
   rotVec,
   iou,
@@ -14,12 +14,13 @@ import {
 
 // ---- pure helpers: the subtle, breakage-prone math ----
 
-test('roundUpToSheet rounds up to a whole sheet', () => {
-  assert.equal(roundUpToSheet(12, 12), 12)
-  assert.equal(roundUpToSheet(13, 12), 24)
-  assert.equal(roundUpToSheet(1, 12), 12)
-  assert.equal(roundUpToSheet(24, 12), 24)
-  assert.equal(roundUpToSheet(25, 12), 36)
+test('roundDownToSheet rounds down to a whole sheet', () => {
+  assert.equal(roundDownToSheet(12, 12), 12)
+  assert.equal(roundDownToSheet(13, 12), 12)
+  assert.equal(roundDownToSheet(50, 12), 48)
+  assert.equal(roundDownToSheet(11, 12), 0)
+  assert.equal(roundDownToSheet(24, 12), 24)
+  assert.equal(roundDownToSheet(25, 12), 24)
 })
 
 test('anchorFor centres a w×h source on (cx,cy) for each rotation', () => {
@@ -152,13 +153,32 @@ test('export draws a black cut line per slot, and none when cutLines is off', { 
   assert.equal((offText.match(/0 0 0 1 K/g) || []).length, 0)
 })
 
-test('quantity rounds up to whole sheets and emits one page per copy', { skip }, async () => {
-  const res = await fillLayout({ ...base(), quantity: 13 })
+test('quantity rounds DOWN to whole sheets and emits one page per copy', { skip }, async () => {
+  const res = await fillLayout({ ...base(), quantity: 25 })
   assert.equal(res.unitsPerSheet, 12)
-  assert.equal(res.rounded, 24)
+  assert.equal(res.rounded, 24) // 25 → 2 whole sheets = 24
   assert.equal(res.copies, 2)
+  assert.equal(res.remainder, 1)
   const pages = (await PDFDocument.load(res.pdfBytes)).getPageCount()
   assert.equal(pages, 2)
+})
+
+test('quantity remainder produces a non-blocking warning', { skip }, async () => {
+  const res = await fillLayout({ ...base(), quantity: 50 })
+  assert.equal(res.rounded, 48)
+  assert.equal(res.remainder, 2)
+  assert.ok(!res.errors, 'remainder must not block export')
+  assert.ok(
+    (res.warnings || []).some((w) => /48 of 50.*remaining 2/i.test(w)),
+    'expected a "48 of 50, remaining 2" warning',
+  )
+})
+
+test('quantity under one sheet blocks export', { skip }, async () => {
+  const res = await fillLayout({ ...base(), quantity: 11 })
+  assert.equal(res.rounded, 0)
+  assert.ok(res.errors && res.errors.length, 'under one sheet must block')
+  assert.ok(res.errors.some((e) => /under one sheet/i.test(e)))
 })
 
 test('refuses (no scaling) when artwork size differs from the template', { skip }, async () => {

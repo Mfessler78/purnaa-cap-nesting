@@ -7,13 +7,16 @@ import { iou, OUTLINE_MATCH_IOU } from './lib/engine'
 import {
   listStyles,
   getStyle,
-  getStylePdf,
+  getStylePdfFile,
   saveStyle,
   deleteStyle,
   bytesToBase64,
   getBackupStatus,
   runBackup,
 } from './lib/api'
+
+const CUT_MODES = ['laser', 'die']
+const MODE_LABELS = { die: 'Die cut', laser: 'Laser' }
 
 const ROTATIONS = [0, 90, 180, 270]
 const newId = () => crypto.randomUUID()
@@ -23,10 +26,23 @@ export default function MappingTool() {
   const [styles, setStyles] = useState([])
   const [loadChoice, setLoadChoice] = useState('')
   const [tab, setTab] = useState('prenest')
-  const [prenest, setPrenest] = useState(null) // { bytes, pdf, name }
-  const [template, setTemplate] = useState(null)
+  const [prenest, setPrenest] = useState(null) // active mode's { bytes, pdf, name }
+  const [template, setTemplate] = useState(null) // active variant's { bytes, pdf, name }
   const [slots, setSlots] = useState([])
   const [templatePieces, setTemplatePieces] = useState([])
+  // U3: the pre-nest is mapped PER cut mode. `prenest`/`slots` above are the
+  // ACTIVE mode's working buffers; the other mode's data parks in this stash and
+  // swaps in when the toggle changes. Each entry: { prenest, slots, file }.
+  const [prenestMode, setPrenestMode] = useState('laser')
+  const [prenestStash, setPrenestStash] = useState({})
+  // U2: a style can hold several TEMPLATE size variants. `template`/`templatePieces`
+  // are the active variant's buffers; others park in this stash keyed by variant
+  // id. Each entry: { template, pieces, pageSize, file }. tplIds is the ordered
+  // list shown in the variant selector; tplId is the active one.
+  const [tplIds, setTplIds] = useState(['v1'])
+  const [tplId, setTplId] = useState('v1')
+  const [tplStash, setTplStash] = useState({})
+  const [tplPageSize, setTplPageSize] = useState(null) // active variant page size
   const [selectedSlotIds, setSelectedSlotIds] = useState([])
   const [selectedPieceIds, setSelectedPieceIds] = useState([])
   const [detectedSlots, setDetectedSlots] = useState([]) // [{x,y,w,h}] not yet added
@@ -76,12 +92,85 @@ export default function MappingTool() {
         setDetectedSlots([])
       } else {
         setTemplate(data)
+        setTplPageSize({ width: pdf.width, height: pdf.height }) // measured for U2 size-match
         setDetectedPieces([])
       }
     } catch (err) {
       setMessage({ kind: 'error', text: `Could not open PDF: ${err.message}` })
     }
   }
+
+  // Switch the active pre-nest cut mode (U3): park the current mode's buffers in
+  // the stash and swap in the target mode's (empty if never mapped).
+  function switchPrenestMode(mode) {
+    if (mode === prenestMode) return
+    setPrenestStash((st) => {
+      const next = { ...st, [prenestMode]: { prenest, slots } }
+      const target = next[mode] || { prenest: null, slots: [] }
+      setPrenest(target.prenest || null)
+      setSlots(target.slots || [])
+      delete next[mode]
+      return next
+    })
+    setPrenestMode(mode)
+    setSelectedSlotIds([])
+    setDetectedSlots([])
+  }
+
+  // Switch the active template variant (U2): park current, swap in target.
+  function switchTemplate(id) {
+    if (id === tplId) return
+    setTplStash((st) => {
+      const next = { ...st, [tplId]: { template, pieces: templatePieces, pageSize: tplPageSize } }
+      const target = next[id] || { template: null, pieces: [], pageSize: null }
+      setTemplate(target.template || null)
+      setTemplatePieces(target.pieces || [])
+      setTplPageSize(target.pageSize || null)
+      delete next[id]
+      return next
+    })
+    setTplId(id)
+    setSelectedPieceIds([])
+    setDetectedPieces([])
+  }
+
+  function addTemplateVariant() {
+    const base = 'v'
+    let n = tplIds.length + 1
+    let id = `${base}${n}`
+    while (tplIds.includes(id)) id = `${base}${++n}`
+    // Park current variant, then start the new empty one.
+    setTplStash((st) => ({ ...st, [tplId]: { template, pieces: templatePieces, pageSize: tplPageSize } }))
+    setTplIds((ids) => [...ids, id])
+    setTplId(id)
+    setTemplate(null)
+    setTemplatePieces([])
+    setTplPageSize(null)
+    setSelectedPieceIds([])
+    setDetectedPieces([])
+  }
+
+  function removeTemplateVariant(id) {
+    if (tplIds.length <= 1) return
+    const remaining = tplIds.filter((x) => x !== id)
+    setTplStash((st) => {
+      const next = { ...st }
+      delete next[id]
+      // If removing the active variant, load another into the buffers.
+      if (id === tplId) {
+        const nextId = remaining[0]
+        const target = next[nextId] || { template: null, pieces: [], pageSize: null }
+        setTemplate(target.template || null)
+        setTemplatePieces(target.pieces || [])
+        setTplPageSize(target.pageSize || null)
+        delete next[nextId]
+        setTplId(nextId)
+      }
+      return next
+    })
+    setTplIds(remaining)
+  }
+
 
   function nextInstance(pieceType) {
     const used = slots
@@ -277,34 +366,106 @@ export default function MappingTool() {
     if (!loadChoice) return
     setMessage({ kind: 'busy', text: 'Loading style…' })
     try {
-      const meta = await getStyle(loadChoice)
-      const [pBytes, tBytes] = await Promise.all([
-        getStylePdf(loadChoice, 'prenest'),
-        getStylePdf(loadChoice, 'template'),
-      ])
+      const meta = await getStyle(loadChoice) // normalized: templates[], prenests{}
       setStyleNumber(meta.style)
-      setSlots(
-        meta.slots.map((s) => ({
-          id: newId(),
-          pieceType: s.piece_type,
-          instance: s.instance,
-          rotation: s.rotation,
-          box: s.box,
-        })),
+
+      // Template variants (U2): fetch each variant's PDF + boxes.
+      const variants = meta.templates?.length ? meta.templates : [{ id: 'v1', pieces: [], page_size: null }]
+      const tplEntries = await Promise.all(
+        variants.map(async (t) => {
+          const bytes = await getStylePdfFile(loadChoice, t.template_pdf)
+          const pdf = bytes ? await loadPdfPage(bytes) : null
+          return {
+            id: t.id,
+            template: bytes ? { bytes, pdf, name: t.template_pdf } : null,
+            pieces: (t.pieces || []).map((p) => ({ id: newId(), pieceType: p.piece_type, box: p.box })),
+            pageSize: t.page_size || (pdf ? { width: pdf.width, height: pdf.height } : null),
+          }
+        }),
       )
-      setTemplatePieces(
-        meta.templatePieces.map((p) => ({ id: newId(), pieceType: p.piece_type, box: p.box })),
+      const tIds = tplEntries.map((e) => e.id)
+      setTplIds(tIds)
+      setTplId(tIds[0])
+      setTemplate(tplEntries[0].template)
+      setTemplatePieces(tplEntries[0].pieces)
+      setTplPageSize(tplEntries[0].pageSize)
+      const tStash = {}
+      for (const e of tplEntries.slice(1)) tStash[e.id] = { template: e.template, pieces: e.pieces, pageSize: e.pageSize }
+      setTplStash(tStash)
+
+      // Pre-nest per cut mode (U3): fetch each mode's PDF + slots.
+      const modes = Object.keys(meta.prenests || {})
+      const preEntries = await Promise.all(
+        modes.map(async (mode) => {
+          const data = meta.prenests[mode]
+          const bytes = await getStylePdfFile(loadChoice, data.prenest_pdf)
+          const pdf = bytes ? await loadPdfPage(bytes) : null
+          return {
+            mode,
+            prenest: bytes ? { bytes, pdf, name: data.prenest_pdf } : null,
+            slots: (data.slots || []).map((s) => ({
+              id: newId(),
+              pieceType: s.piece_type,
+              instance: s.instance,
+              rotation: s.rotation,
+              box: s.box,
+            })),
+          }
+        }),
       )
-      setPrenest(pBytes ? { bytes: pBytes, pdf: await loadPdfPage(pBytes), name: 'prenest.pdf' } : null)
-      setTemplate(tBytes ? { bytes: tBytes, pdf: await loadPdfPage(tBytes), name: 'template.pdf' } : null)
+      const activeMode = modes.includes('laser') ? 'laser' : modes[0] || 'laser'
+      const active = preEntries.find((e) => e.mode === activeMode) || { prenest: null, slots: [] }
+      setPrenestMode(activeMode)
+      setPrenest(active.prenest)
+      setSlots(active.slots)
+      const pStash = {}
+      for (const e of preEntries) if (e.mode !== activeMode) pStash[e.mode] = { prenest: e.prenest, slots: e.slots }
+      setPrenestStash(pStash)
+
       setSelectedSlotIds([])
       setSelectedPieceIds([])
       setDetectedSlots([])
       setDetectedPieces([])
-      setMessage({ kind: 'ok', text: `Loaded "${meta.style}" for editing.` })
+      const modeList = modes.map((m) => MODE_LABELS[m] || m).join(' + ') || 'none'
+      setMessage({
+        kind: 'ok',
+        text: `Loaded "${meta.style}" — ${tIds.length} template(s), pre-nest modes: ${modeList}.`,
+      })
     } catch (err) {
       setMessage({ kind: 'error', text: err.message })
     }
+  }
+
+  // Merge the active buffers with the parked stashes into the full multi-variant
+  // / multi-mode payload the server expects.
+  function gatherTemplates() {
+    return tplIds.map((id) => {
+      const e = id === tplId ? { template, pieces: templatePieces, pageSize: tplPageSize } : tplStash[id]
+      return {
+        id,
+        page_size: e?.pageSize || null,
+        pieces: (e?.pieces || []).map((p) => ({ piece_type: p.pieceType.trim(), box: p.box })),
+        pdfBase64: e?.template ? bytesToBase64(e.template.bytes) : undefined,
+      }
+    })
+  }
+  function gatherPrenests() {
+    const out = {}
+    const entries = { ...prenestStash, [prenestMode]: { prenest, slots } }
+    for (const [mode, e] of Object.entries(entries)) {
+      // Skip a mode with nothing mapped (no slots and no PDF).
+      if (!(e.slots && e.slots.length) && !e.prenest) continue
+      out[mode] = {
+        slots: (e.slots || []).map((s) => ({
+          piece_type: s.pieceType.trim(),
+          instance: s.instance,
+          rotation: s.rotation,
+          box: s.box,
+        })),
+        pdfBase64: e.prenest ? bytesToBase64(e.prenest.bytes) : undefined,
+      }
+    }
+    return out
   }
 
   // Delete the style chosen in "Edit existing". Gated by a named confirmation
@@ -325,14 +486,30 @@ export default function MappingTool() {
 
   async function onSave() {
     const style = styleNumber.trim()
+    const templates = gatherTemplates()
+    const prenests = gatherPrenests()
+    const modeKeys = Object.keys(prenests)
     const problems = []
     if (!style) problems.push('Enter a style number.')
-    if (slots.length === 0 && templatePieces.length === 0)
-      problems.push('Nothing to save — draw at least one box.')
-    const unlabeledSlots = slots.filter((s) => !s.pieceType.trim()).length
-    if (unlabeledSlots) problems.push(`${unlabeledSlots} slot box(es) have no piece type.`)
-    const unlabeledPieces = templatePieces.filter((p) => !p.pieceType.trim()).length
-    if (unlabeledPieces) problems.push(`${unlabeledPieces} template box(es) have no piece type.`)
+    const totalSlots = modeKeys.reduce((n, m) => n + prenests[m].slots.length, 0)
+    const totalPieces = templates.reduce((n, t) => n + t.pieces.length, 0)
+    if (totalSlots === 0 && totalPieces === 0) problems.push('Nothing to save — draw at least one box.')
+    for (const m of modeKeys) {
+      const u = prenests[m].slots.filter((s) => !s.piece_type).length
+      if (u) problems.push(`${MODE_LABELS[m] || m}: ${u} slot box(es) have no piece type.`)
+    }
+    for (const t of templates) {
+      const u = t.pieces.filter((p) => !p.piece_type).length
+      if (u) problems.push(`Template "${t.id}": ${u} box(es) have no piece type.`)
+    }
+    // Multi-variant safety: variants must have distinct measured sizes, or the
+    // run screen can't auto-pick by artwork size (U2).
+    if (templates.length > 1) {
+      const missing = templates.filter((t) => !t.page_size).map((t) => t.id)
+      if (missing.length) problems.push(`Template(s) ${missing.join(', ')} need a PDF uploaded so their size can be measured for auto-select.`)
+      const sizes = templates.filter((t) => t.page_size).map((t) => `${Math.round(t.page_size.width)}x${Math.round(t.page_size.height)}`)
+      if (new Set(sizes).size !== sizes.length) problems.push('Two template variants have the same size — artwork auto-select needs distinct sizes.')
+    }
     if (problems.length) {
       setMessage({ kind: 'error', text: problems.join(' ') })
       return
@@ -342,23 +519,11 @@ export default function MappingTool() {
     const isNew = !styles.some((s) => s.id === style)
     setMessage({ kind: 'busy', text: 'Saving…' })
     try {
-      await saveStyle({
-        style,
-        slots: slots.map((s) => ({
-          piece_type: s.pieceType.trim(),
-          instance: s.instance,
-          rotation: s.rotation,
-          box: s.box,
-        })),
-        templatePieces: templatePieces.map((p) => ({
-          piece_type: p.pieceType.trim(),
-          box: p.box,
-        })),
-        prenestPdf: prenest ? bytesToBase64(prenest.bytes) : undefined,
-        templatePdf: template ? bytesToBase64(template.bytes) : undefined,
-      })
+      await saveStyle({ style, templates, prenests })
       await refreshStyles()
-      const savedText = `Saved "${style}" — ${slots.length} slots, ${templatePieces.length} template pieces → styles/${style}/`
+      const savedText =
+        `Saved "${style}" — templates: ${templates.map((t) => `${t.id}(${t.pieces.length})`).join(', ')}; ` +
+        `pre-nest: ${modeKeys.map((m) => `${MODE_LABELS[m] || m}(${prenests[m].slots.length})`).join(', ')} → styles/${style}/`
       setMessage({ kind: 'ok', text: savedText })
 
       // New style → recommend a backup now (the one deliberate interruption).
@@ -462,6 +627,55 @@ export default function MappingTool() {
           2. Template pieces ({templatePieces.length})
         </button>
       </div>
+
+      {/* U3: each cut mode has its own pre-nest + slot map. Switch maps here. */}
+      {tab === 'prenest' && (
+        <div className="context-bar" title="Die cut and Laser need different spacing, so each has its own pre-nest sheet and slot map. Map them separately.">
+          <span className="context-label">Cut mode:</span>
+          <div className="mode-toggle">
+            {CUT_MODES.map((m) => (
+              <button
+                key={m}
+                className={prenestMode === m ? 'active' : ''}
+                onClick={() => switchPrenestMode(m)}
+              >
+                {MODE_LABELS[m]}
+                {prenestStash[m]?.slots?.length ? ` (${prenestStash[m].slots.length})` : ''}
+              </button>
+            ))}
+          </div>
+          <span className="hint-text">Mapping the {MODE_LABELS[prenestMode]} pre-nest.</span>
+        </div>
+      )}
+
+      {/* U2: a style can hold several template SIZE variants; artwork auto-picks
+          the matching one at run time. Manage variants here. */}
+      {tab === 'template' && (
+        <div className="context-bar" title="Add a variant for each template SIZE (e.g. last year's and this year's). On a run, the app picks the variant matching the uploaded artwork's size — it never scales.">
+          <span className="context-label">Template variant:</span>
+          <select value={tplId} onChange={(e) => switchTemplate(e.target.value)}>
+            {tplIds.map((id) => (
+              <option key={id} value={id}>
+                {id}
+                {(id === tplId ? templatePieces.length : tplStash[id]?.pieces?.length || 0)
+                  ? ` (${id === tplId ? templatePieces.length : tplStash[id].pieces.length} pcs)`
+                  : ''}
+              </option>
+            ))}
+          </select>
+          <button onClick={addTemplateVariant}>+ Add variant</button>
+          {tplIds.length > 1 && (
+            <button className="danger" onClick={() => removeTemplateVariant(tplId)}>
+              Remove "{tplId}"
+            </button>
+          )}
+          <span className="hint-text">
+            {tplPageSize
+              ? `Size: ${Math.round(tplPageSize.width)} × ${Math.round(tplPageSize.height)} pt`
+              : 'Upload this variant’s PDF to measure its size.'}
+          </span>
+        </div>
+      )}
 
       <div className="tab-body">
         <div className="editor-pane">

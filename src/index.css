@@ -423,6 +423,21 @@ button.secondary:hover:not(:disabled) {
   display: flex;
   gap: 6px;
 }
+.context-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #f1f1f4;
+  border: 1px solid #e0e0e8;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.context-bar .context-label {
+  font-weight: 600;
+  color: #444;
+}
 .subtabs button.active {
   background: #1a1a2e;
   color: #fff;
@@ -676,4 +691,66 @@ svg text {
   padding: 0 7px;
   color: #b71c1c;
   border-color: #ddd;
+}
+
+/* ---- Cross-platform / responsive pass (U6) ----
+   The app was laid out on a Mac at 100% display scaling. On Windows the host
+   commonly runs at 125-150% OS scaling and shows persistent scrollbars, which
+   inflated this fixed-px layout and made the single-row toolbars overflow and
+   look "wonky". A web page cannot (and should not) override the user's OS
+   scaling, but it CAN stop assuming one fixed width: let every horizontal
+   control row WRAP instead of overflowing, let the side panel shrink, stack the
+   mapping editor on narrow windows, and reserve scrollbar space so nothing
+   shifts. No UI was rewritten — only made fluid. Verify on the Windows host at
+   100/125/150% scaling. */
+
+/* Reserve scrollbar space so Windows' persistent scrollbar doesn't eat layout
+   width and cause reflow between platforms. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Every single-row control strip wraps to a new line instead of overflowing the
+   window when OS scaling / a narrow window makes the row too wide. */
+.app-header,
+.app-header nav,
+.toolbar,
+.office-link,
+.detect-controls,
+.approve-row,
+.file-row,
+.fabrics-actions,
+.backup-bar,
+.bulk-row {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+/* On wide/scaled monitors the header message shouldn't push the nav off-screen. */
+.office-link-msg {
+  max-width: min(360px, 50vw);
+}
+
+/* The mapping side panel was a hard 360px that could not shrink, squeezing the
+   editor on smaller/scaled Windows windows. Let it shrink, with a floor. */
+.side-pane {
+  width: clamp(260px, 30%, 360px);
+  flex-shrink: 1;
+  scrollbar-gutter: stable;
+}
+.editor-scroll {
+  scrollbar-gutter: stable;
+}
+
+/* On a narrow window (e.g. a Windows laptop at 150% scaling, ~850px effective)
+   stack the mapping editor above its slot/piece list instead of cramming them
+   side by side. */
+@media (max-width: 900px) {
+  .tab-body {
+    flex-direction: column;
+  }
+  .side-pane {
+    width: 100%;
+    max-height: 320px;
+  }
 }

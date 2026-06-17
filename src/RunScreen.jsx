@@ -1,9 +1,40 @@
 import { useEffect, useState } from 'react'
 import PdfViewer from './PdfViewer.jsx'
-import { listStyles, getStyle, getStylePdf, listFabrics, exportStatus, processExport } from './lib/api'
+import { listStyles, getStyle, getStylePdfFile, listFabrics, exportStatus, processExport } from './lib/api'
 import { loadPdfPage } from './lib/pdfRender'
 import { fillLayout } from './lib/engine'
 import { checkArtworkRegions } from './lib/verifyArtwork'
+
+const MODE_LABELS = { die: 'Die cut', laser: 'Laser' }
+
+// Pick the template variant whose page size matches the uploaded artwork. The
+// match is EXACT (1 pt tolerance — the same guard the engine uses to refuse a
+// size mismatch); we SELECT a matching template, we never scale to fit (§3). A
+// single-variant style always uses its one template (the engine still refuses if
+// the artwork size differs).
+function pickTemplate(templates, artSize) {
+  if (templates.length === 1) return { variant: templates[0] }
+  const tol = 1
+  const sizeStr = (s) => (s ? `${Math.round(s.width)}×${Math.round(s.height)} pt` : 'unmeasured')
+  const matches = templates.filter(
+    (t) =>
+      t.page_size &&
+      Math.abs(t.page_size.width - artSize.width) <= tol &&
+      Math.abs(t.page_size.height - artSize.height) <= tol,
+  )
+  if (matches.length === 1) return { variant: matches[0] }
+  const list = templates.map((t) => `${t.id} (${sizeStr(t.page_size)})`).join(', ')
+  if (matches.length === 0) {
+    return {
+      error:
+        `No template size matches the artwork (${Math.round(artSize.width)}×${Math.round(artSize.height)} pt). ` +
+        `Available templates: ${list}. Refusing — artwork must match a template at identical scale (no scaling).`,
+    }
+  }
+  return {
+    error: `${matches.length} templates share the artwork's size (${list}) — a setup error. Fix the duplicate before running.`,
+  }
+}
 
 // Yield to the browser so a just-set progress message paints before the next
 // heavy (CPU-blocking) step runs.
@@ -12,6 +43,8 @@ const tick = () => new Promise((r) => setTimeout(r))
 export default function RunScreen() {
   const [styles, setStyles] = useState([])
   const [styleId, setStyleId] = useState('')
+  const [meta, setMeta] = useState(null) // normalized style.json (templates[], prenests{})
+  const [cutMode, setCutMode] = useState('') // 'die' | 'laser'
   const [fabrics, setFabrics] = useState([])
   const [fabricName, setFabricName] = useState('')
   const [quantity, setQuantity] = useState(12)
@@ -36,6 +69,37 @@ export default function RunScreen() {
     exportStatus().then(setGs).catch(() => {})
   }, [])
 
+  // Load the selected style's map so we know its cut modes (U3) and template
+  // variants (U2) before the operator runs it.
+  useEffect(() => {
+    if (!styleId) {
+      setMeta(null)
+      setCutMode('')
+      return
+    }
+    let cancelled = false
+    getStyle(styleId)
+      .then((m) => {
+        if (cancelled) return
+        setMeta(m)
+        const modes = Object.keys(m.prenests || {})
+        // Default to laser when present (the historical/most-common mode), else
+        // whichever mode this style actually has mapped.
+        setCutMode(modes.includes('laser') ? 'laser' : modes[0] || '')
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMeta(null)
+          setCutMode('')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [styleId])
+
+  const availableModes = meta ? Object.keys(meta.prenests || {}) : []
+
   // Any input change invalidates the previous fill and its approval.
   function resetOutput() {
     setResult(null)
@@ -55,21 +119,39 @@ export default function RunScreen() {
     setBusy(true)
     setProgress('Loading style and PDFs…')
     try {
-      const meta = await getStyle(styleId)
-      const [prenestBytes, templateBytes] = await Promise.all([
-        getStylePdf(styleId, 'prenest'),
-        getStylePdf(styleId, 'template'),
-      ])
-      if (!prenestBytes) throw new Error('This style has no saved pre-nest PDF.')
+      const styleMeta = meta || (await getStyle(styleId))
+      const mode = cutMode || Object.keys(styleMeta.prenests || {})[0]
+      const prenestEntry = styleMeta.prenests?.[mode]
+      if (!prenestEntry) throw new Error(`This style has no "${MODE_LABELS[mode] || mode}" pre-nest mapped.`)
 
+      // U2: measure the artwork and SELECT the matching-size template variant.
+      const artPage = await loadPdfPage(artwork.bytes)
+      const pick = pickTemplate(styleMeta.templates || [], { width: artPage.width, height: artPage.height })
+      if (pick.error) {
+        setReport({ passed: [], blocking: [pick.error], warnings: [] })
+        return
+      }
+      const variant = pick.variant
+
+      const [prenestBytes, templateBytes] = await Promise.all([
+        getStylePdfFile(styleId, prenestEntry.prenest_pdf),
+        getStylePdfFile(styleId, variant.template_pdf),
+      ])
+      if (!prenestBytes) throw new Error(`This style has no saved "${MODE_LABELS[mode] || mode}" pre-nest PDF.`)
+
+      // The engine is schema-agnostic: feed it the chosen variant's pieces and
+      // the chosen mode's slots as plain arrays (U2/U3 live in selection, not the
+      // engine), plus the cut mode for the stamp + DXF.
+      const engineStyle = { style: styleMeta.style, templatePieces: variant.pieces, slots: prenestEntry.slots }
       const fabric = fabrics.find((f) => f.name === fabricName)
       const common = {
         prenestBytes,
         templateBytes,
         artworkBytes: artwork.bytes,
-        style: meta,
+        style: engineStyle,
         quantity: Number(quantity),
         fabric,
+        cutMode: mode,
         clipToOutline,
         clipBleed: Math.max(0, Number(bleedIn) || 0) * 72,
         cutLineWidthMm: Math.max(0, Number(cutLineMm) || 0),
@@ -77,7 +159,7 @@ export default function RunScreen() {
       setProgress('Checking artwork and placing pieces… (large artwork can take a moment)')
       await tick()
       const [artChecks, res] = await Promise.all([
-        checkArtworkRegions(artwork.bytes, meta.templatePieces),
+        checkArtworkRegions(artwork.bytes, variant.pieces),
         fillLayout({ ...common, guides: true }),
       ])
       // Export composition: same placements on a blank page — no guide content.
@@ -116,10 +198,15 @@ export default function RunScreen() {
           warnings.push('Outline clipping is off — artwork is clipped to rectangles and may bleed or cut off.')
         }
         passed.unshift(
+          `Cut mode: ${MODE_LABELS[mode] || mode}`,
+          ...(styleMeta.templates.length > 1
+            ? [`Selected template "${variant.id}" by artwork size (${res.artboard})`]
+            : []),
           `Artwork artboard matches the template (${res.artboard})`,
           `Quantity ${quantity} → ${res.rounded} (${res.copies} sheet${res.copies > 1 ? 's' : ''} × ${res.unitsPerSheet} caps)`,
           ...res.summary.map((s) => `Placed ${s}`),
           `Fabric stretch ${res.scalePercent}% applied to every sheet`,
+          ...(mode === 'laser' ? [`Laser DXF ready (${exportRes.dxf ? 'cut contours included' : 'no contours'})`] : []),
           `Stamp: ${res.stamp}`,
         )
         setResult({
@@ -127,7 +214,9 @@ export default function RunScreen() {
           pdf: await loadPdfPage(res.pdfBytes),
           rounded: res.rounded,
           copies: res.copies,
+          mode,
           exportBytes: exportRes.pdfBytes,
+          dxf: exportRes.dxf || null,
         })
       }
       setReport({ passed, blocking, warnings })
@@ -154,12 +243,25 @@ export default function RunScreen() {
       const { bytes, applied } = await processExport(result.exportBytes, { method })
       const blob = new Blob([bytes], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
+      const modeTag = result.mode ? ` ${result.mode.toUpperCase()}` : ''
       const a = document.createElement('a')
       a.href = url
-      a.download = `${styleId} ${fabricName} qty${result.rounded} PRINT.pdf`
+      a.download = `${styleId} ${fabricName} qty${result.rounded}${modeTag} PRINT.pdf`
       a.click()
       URL.revokeObjectURL(url)
-      setExportInfo({ kind: 'ok', text: `Exported. Applied: ${applied}` })
+      // Laser mode also drops the DXF the cutter reads, alongside the PDF.
+      if (result.mode === 'laser' && result.dxf) {
+        const durl = URL.createObjectURL(new Blob([result.dxf], { type: 'application/dxf' }))
+        const da = document.createElement('a')
+        da.href = durl
+        da.download = `${styleId} ${fabricName} qty${result.rounded}${modeTag} CUT.dxf`
+        da.click()
+        URL.revokeObjectURL(durl)
+      }
+      setExportInfo({
+        kind: 'ok',
+        text: `Exported${result.mode === 'laser' && result.dxf ? ' (PDF + DXF)' : ''}. Applied: ${applied}`,
+      })
     } catch (err) {
       setExportInfo({ kind: 'error', text: err.message })
     } finally {
@@ -186,6 +288,28 @@ export default function RunScreen() {
                 {s.style} ({s.slotCount} slots)
               </option>
             ))}
+          </select>
+        </label>
+        <label title="Die cut and Laser use different pre-nest spacing; each is mapped separately per style. A mode that isn't mapped for this style is disabled.">
+          Cut mode
+          <select
+            value={cutMode}
+            onChange={(e) => {
+              setCutMode(e.target.value)
+              resetOutput()
+            }}
+            disabled={!meta}
+          >
+            {!meta && <option value="">— pick a style —</option>}
+            {['die', 'laser'].map((m) => {
+              const has = availableModes.includes(m)
+              return (
+                <option key={m} value={m} disabled={!has}>
+                  {MODE_LABELS[m]}
+                  {has ? '' : ' (not mapped)'}
+                </option>
+              )
+            })}
           </select>
         </label>
         <label>
@@ -267,7 +391,7 @@ export default function RunScreen() {
         <button
           className="primary"
           onClick={onFill}
-          disabled={!styleId || !fabricName || !artwork || busy}
+          disabled={!styleId || !cutMode || !fabricName || !artwork || busy}
         >
           {busy ? 'Filling…' : 'Fill layout'}
         </button>

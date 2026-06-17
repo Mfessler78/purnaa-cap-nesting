@@ -20,6 +20,49 @@ const ROOT = path.join(APP_ROOT, 'styles')
 // Style numbers become directory names, so restrict the characters.
 const isSafeId = (id) => /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/.test(id)
 
+// ---- Schema migration (U2/U3) ---------------------------------------------
+// style.json grew from "one template + one pre-nest" to MANY template SIZE
+// variants (U2, auto-selected by artwork size) and a SEPARATE pre-nest per cut
+// mode (U3, die vs laser). Old styles on disk keep the original shape; this
+// normalizer upgrades EITHER shape to one canonical structure in memory so every
+// reader sees the same thing. Legacy single pre-nests are treated as LASER (owner
+// decision); the single template becomes one variant. Files on disk are NOT
+// rewritten here — disk migration happens only when the style is saved again.
+const safeFilePart = (s) => String(s).replace(/[^A-Za-z0-9_.-]+/g, '_').replace(/\.+/g, '_') || 'x'
+
+function normalizeStyle(meta) {
+  const templates = Array.isArray(meta.templates) && meta.templates.length
+    ? meta.templates
+    : [
+        {
+          id: 'v1',
+          template_pdf: 'template.pdf',
+          page_size: meta.templatePageSize || null,
+          pieces: meta.templatePieces || [],
+        },
+      ]
+  const prenests =
+    meta.prenests && Object.keys(meta.prenests).length
+      ? meta.prenests
+      : { laser: { prenest_pdf: 'prenest.pdf', slots: meta.slots || [] } }
+  return { ...meta, templates, prenests }
+}
+
+// Counts for the style list, tolerant of either shape.
+function styleCounts(norm) {
+  const modes = Object.keys(norm.prenests)
+  const slotCount = modes.reduce(
+    (m, k) => Math.max(m, norm.prenests[k]?.slots?.length || 0),
+    0,
+  )
+  return {
+    slotCount,
+    templatePieceCount: (norm.templates[0]?.pieces || []).length,
+    modes,
+    templateCount: norm.templates.length,
+  }
+}
+
 async function readJsonBody(req) {
   const chunks = []
   for await (const chunk of req) chunks.push(chunk)
@@ -61,11 +104,15 @@ async function handle(req, res) {
         const meta = JSON.parse(
           await fs.readFile(path.join(ROOT, dir, 'style.json'), 'utf8'),
         )
+        const norm = normalizeStyle(meta)
+        const c = styleCounts(norm)
         out.push({
           id: dir,
           style: meta.style,
-          slotCount: meta.slots.length,
-          templatePieceCount: meta.templatePieces.length,
+          slotCount: c.slotCount,
+          templatePieceCount: c.templatePieceCount,
+          modes: c.modes,
+          templateCount: c.templateCount,
           updatedAt: meta.updatedAt,
         })
       } catch {
@@ -89,40 +136,82 @@ async function handle(req, res) {
     try {
       existing = JSON.parse(await fs.readFile(path.join(dir, 'style.json'), 'utf8'))
     } catch {}
+
+    // Accept the new multi-template / per-mode shape, OR the legacy single
+    // template + single pre-nest payload (so an older client still saves). Both
+    // are funnelled into the new shape and written once.
+    const inTemplates = Array.isArray(body.templates)
+      ? body.templates
+      : [
+          {
+            id: 'v1',
+            template_pdf: 'template.pdf',
+            page_size: body.templatePageSize || null,
+            pieces: body.templatePieces || [],
+            pdfBase64: body.templatePdf,
+          },
+        ]
+    const inPrenests =
+      body.prenests && typeof body.prenests === 'object'
+        ? body.prenests
+        : { laser: { prenest_pdf: 'prenest.pdf', slots: body.slots || [], pdfBase64: body.prenestPdf } }
+
+    const templates = []
+    for (const t of inTemplates) {
+      const id = safeFilePart(t.id || 'v1')
+      const filename = t.template_pdf || `template_${id}.pdf`
+      if (t.pdfBase64) {
+        await writeFileAtomic(path.join(dir, filename), Buffer.from(t.pdfBase64, 'base64'))
+      }
+      templates.push({ id, template_pdf: filename, page_size: t.page_size || null, pieces: t.pieces || [] })
+    }
+
+    const prenests = {}
+    for (const [mode, data] of Object.entries(inPrenests)) {
+      if (mode !== 'die' && mode !== 'laser') {
+        return send(res, 400, { error: `Unknown cut mode "${mode}" (expected die or laser).` })
+      }
+      const filename = data.prenest_pdf || `prenest_${mode}.pdf`
+      if (data.pdfBase64) {
+        await writeFileAtomic(path.join(dir, filename), Buffer.from(data.pdfBase64, 'base64'))
+      }
+      prenests[mode] = { prenest_pdf: filename, slots: data.slots || [] }
+    }
+
     const meta = {
       style,
       coordinateSpace: 'PDF points, origin bottom-left; box = {x, y, w, h} with (x, y) the bottom-left corner',
+      schemaVersion: 2,
       createdAt: existing?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      slots: body.slots || [],
-      templatePieces: body.templatePieces || [],
-    }
-    if (body.prenestPdf) {
-      await writeFileAtomic(path.join(dir, 'prenest.pdf'), Buffer.from(body.prenestPdf, 'base64'))
-    }
-    if (body.templatePdf) {
-      await writeFileAtomic(path.join(dir, 'template.pdf'), Buffer.from(body.templatePdf, 'base64'))
+      templates,
+      prenests,
     }
     await writeFileAtomic(path.join(dir, 'style.json'), JSON.stringify(meta, null, 2))
     return send(res, 200, { ok: true, id: style })
   }
 
-  const match = url.match(/^\/([^/]+)(?:\/(prenest\.pdf|template\.pdf))?$/)
+  // PDF route accepts the legacy fixed names AND per-variant / per-mode files
+  // (template_*.pdf, prenest_*.pdf). The filename charset excludes "/" and we
+  // reject ".." so it can't escape the style directory.
+  const match = url.match(/^\/([^/]+)(?:\/([A-Za-z0-9][A-Za-z0-9_.-]*\.pdf))?$/)
   if (match && req.method === 'GET') {
     const id = decodeURIComponent(match[1])
     if (!isSafeId(id)) return send(res, 400, { error: 'Bad style id' })
     if (!match[2]) {
       try {
-        const meta = await fs.readFile(path.join(ROOT, id, 'style.json'), 'utf8')
+        const raw = JSON.parse(await fs.readFile(path.join(ROOT, id, 'style.json'), 'utf8'))
         res.statusCode = 200
         res.setHeader('Content-Type', 'application/json')
-        return res.end(meta)
+        return res.end(JSON.stringify(normalizeStyle(raw)))
       } catch {
         return send(res, 404, { error: 'Style not found' })
       }
     }
+    const file = match[2]
+    if (file.includes('..')) return send(res, 400, { error: 'Bad file name' })
     try {
-      const buf = await fs.readFile(path.join(ROOT, id, match[2]))
+      const buf = await fs.readFile(path.join(ROOT, id, file))
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/pdf')
       return res.end(buf)
@@ -534,6 +623,8 @@ async function handleBackup(req, res) {
 // Exported so the standalone LAN server (server/serve.js) can mount the SAME
 // handlers the Vite dev plugin uses — one code path for dev and production.
 export { handle, handleFabrics, handleExport, handleHost, handleBackup, lanAddresses }
+// Exported for unit tests (schema migration is subtle; protect it directly).
+export { normalizeStyle, styleCounts }
 
 export default function stylesApi() {
   return {

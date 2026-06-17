@@ -15,6 +15,7 @@ import {
   stroke,
 } from 'pdf-lib'
 import { extractOutlines } from './pdfPaths.js'
+import { buildDxf } from './dxf.js'
 
 // Fill engine (M2): places customer artwork into pre-nest slots.
 // - Matches slots to artwork by piece_type label (exact match after trimming).
@@ -24,9 +25,12 @@ import { extractOutlines } from './pdfPaths.js'
 //   slot box at its native size. NO scaling of any kind happens here.
 // Pure data-in/data-out; runs in browser and Node (used by tests).
 
-// Round a quantity up to the next whole sheet. One pre-nest sheet yields
-// `unitsPerSheet` caps (normally 12); orders are printed as whole sheets.
-export const roundUpToSheet = (q, unitsPerSheet) => Math.ceil(q / unitsPerSheet) * unitsPerSheet
+// Round a quantity DOWN to the nearest whole sheet. One pre-nest sheet yields
+// `unitsPerSheet` caps (normally 12). We only nest whole sheets; any remainder
+// (qty mod unitsPerSheet) is produced separately in the regular, non-nested
+// artwork format, so the operator is warned rather than over-printing a full
+// extra sheet. (Was round-UP; see U1 in the update plan.)
+export const roundDownToSheet = (q, unitsPerSheet) => Math.floor(q / unitsPerSheet) * unitsPerSheet
 
 // drawPage rotates counter-clockwise around the draw point. Returns the draw
 // point that centers a w×h source, rotated by `rotation`, on (cx, cy).
@@ -255,6 +259,86 @@ function cutLineOpsFor(t, ax, ay, rotation, outline, lineWidthPts) {
   return ops
 }
 
+// The placed cut contour(s) for one piece as point arrays (page points), using
+// the SAME geometry the cut line strokes — so the laser DXF (U4) and the printed
+// cut line can never disagree. True outline when matched, else the piece box.
+function placedCutPolys(t, ax, ay, rotation, outline) {
+  const map = slotPointMapper(t, ax, ay, rotation)
+  const polys = []
+  if (outline) {
+    for (const sp of outline.subpaths) {
+      const poly = flattenSubpath(sp)
+      if (poly.length >= 2) polys.push(poly.map(([px, py]) => map(px, py)))
+    }
+  }
+  if (!polys.length) {
+    const box = [
+      [t.x, t.y],
+      [t.x + t.w, t.y],
+      [t.x + t.w, t.y + t.h],
+      [t.x, t.y + t.h],
+    ]
+    polys.push(box.map(([px, py]) => map(px, py)))
+  }
+  return polys
+}
+
+// ---- Piece-ID labels (U5) -------------------------------------------------
+// Print a small panel name inside every placed piece so the die/laser cut team
+// can tell panels apart. It must land INSIDE the cut line but within the seam-
+// allowance band (just inside the edge), so it is hidden once the panel is sewn
+// — a label printed in the body would show on the finished cap. We hug the
+// bottom cut edge (page-bottom, so the piece's rotation doesn't matter), centred
+// on the widest interior run there, with small shrink-to-fit text. Exact spot
+// isn't critical (owner) as long as it's inside the line and fully legible.
+
+// Interior horizontal runs [x0,x1] where scan line `y` is inside the polygon.
+// Even-odd edge crossings, so concave shapes (visor crescents) split correctly.
+function interiorSpansAtY(poly, y) {
+  const xs = []
+  const n = poly.length
+  for (let i = 0; i < n; i++) {
+    const [x1, y1] = poly[i]
+    const [x2, y2] = poly[(i + 1) % n]
+    if ((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) {
+      xs.push(x1 + ((y - y1) / (y2 - y1)) * (x2 - x1))
+    }
+  }
+  xs.sort((a, b) => a - b)
+  const spans = []
+  for (let i = 0; i + 1 < xs.length; i += 2) spans.push([xs[i], xs[i + 1]])
+  return spans
+}
+
+// Anchor for the label: midpoint of the widest interior run, scanning from just
+// inside the bottom cut edge upward. Returns {x, y, w} (w = interior width for
+// shrink-to-fit) or null. Walks up a few bands so a thin bottom (visor tip)
+// falls through to a wider run rather than getting no label.
+function pieceLabelAnchor(poly, inset) {
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const [, y] of poly) {
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
+  const h = maxY - minY
+  if (!(h > 0)) return null
+  const bands = [inset, h * 0.12, h * 0.25, h * 0.5].map((d) => minY + Math.min(d, h * 0.5))
+  let best = null
+  for (const y of bands) {
+    let widest = null
+    for (const [a, b] of interiorSpansAtY(poly, y)) {
+      if (!widest || b - a > widest[1] - widest[0]) widest = [a, b]
+    }
+    if (!widest) continue
+    const w = widest[1] - widest[0]
+    if (!best || w > best.w) best = { x: (widest[0] + widest[1]) / 2, y, w }
+    // Good enough run near the bottom edge: take it (keeps the label in the band).
+    if (w > h * 0.15) return best
+  }
+  return best
+}
+
 export async function fillLayout({
   prenestBytes,
   templateBytes,
@@ -267,6 +351,8 @@ export async function fillLayout({
   clipBleed = 18, // points of outward bleed kept when clipping (0.25" default)
   cutLines = true, // draw black cut lines the laser follows (preserved in export)
   cutLineWidthMm = 1.5, // laser cut-line width; editable, confirm exact value at install
+  pieceLabels = true, // print each piece's type inside it (U5) for the cut team
+  cutMode = null, // 'die' | 'laser' | null — shown on the stamp; laser also emits a DXF (U4)
 }) {
   const errors = []
   const warnings = []
@@ -312,8 +398,24 @@ export async function fillLayout({
   // number of sheets. Unequal counts mean some slots can't form a full cap.
   const counts = [...slotsByType.values()].map((s) => s.length)
   const unitsPerSheet = counts.length ? Math.min(...counts) : 12
-  const rounded = roundUpToSheet(qty, unitsPerSheet)
+  // Nest whole sheets only (round DOWN); the leftover is handled separately.
+  const rounded = roundDownToSheet(qty, unitsPerSheet)
   const copies = rounded / unitsPerSheet
+  const remainder = qty - rounded
+  if (rounded === 0) {
+    // Under one sheet: there is nothing to nest. Block rather than export an
+    // empty PDF — the whole order goes out in the regular artwork format.
+    errors.push(
+      `Order is under one sheet (${unitsPerSheet}). All ${qty} piece(s) must be produced ` +
+        `using the regular (non-nested) artwork format — nothing to nest.`,
+    )
+  } else if (remainder > 0) {
+    // Non-blocking: the nested run is short of the order by `remainder`.
+    warnings.push(
+      `This run covers ${rounded} of ${qty}. The remaining ${remainder} must be produced ` +
+        `separately using the regular (non-nested) artwork format.`,
+    )
+  }
   if (counts.length && new Set(counts).size > 1) {
     const detail = [...slotsByType.entries()]
       .map(([t, s]) => `${t}: ${s.length}`)
@@ -435,6 +537,10 @@ export async function fillLayout({
     page = out.addPage([prenestSize.width, prenestSize.height])
   }
   const summary = []
+  // Laser DXF (U4): collect each placed piece's cut contour (one sheet's worth,
+  // in page points) as we lay it down; converted to mm and emitted after the
+  // fabric scale is known. Only gathered for laser mode.
+  const dxfPolys = []
 
   // Embed the artwork page ONCE and share this single form across every slot.
   // Previously it was embedded once per piece type, and pdf-lib copies all of a
@@ -443,6 +549,9 @@ export async function fillLayout({
   // flatten. Here the full page is embedded once; each slot is positioned by
   // transform and trimmed by clip paths instead of by a per-type embed BBox.
   const embArt = await out.embedPage(artPage)
+  // Font for the piece-ID labels lives in the same doc we draw the sheet on.
+  const labelFont = pieceLabels ? await out.embedFont(StandardFonts.Helvetica) : null
+  const LABEL_INSET = 4 * MM_TO_PT // sit ~4 mm inside the bottom cut edge (seam band)
 
   for (const [type, slots] of slotsByType) {
     const t = templateByType.get(type).box
@@ -465,6 +574,44 @@ export async function fillLayout({
       if (cutLines) {
         page.pushOperators(...cutLineOpsFor(t, x, y, slot.rotation, outline, cutLineWidthMm * MM_TO_PT))
       }
+      // Laser DXF cut geometry — same contour as the printed cut line.
+      if (cutMode === 'laser') {
+        for (const poly of placedCutPolys(t, x, y, slot.rotation, outline)) dxfPolys.push(poly)
+      }
+      // Piece-ID label, drawn last (above the artwork, never inside the clip) so
+      // it is fully visible. Anchored in the bottom seam band of the placed piece.
+      if (pieceLabels) {
+        const map = slotPointMapper(t, x, y, slot.rotation)
+        let localPoly
+        if (outline) {
+          localPoly = outline.subpaths
+            .map((sp) => flattenSubpath(sp))
+            .reduce((a, b) => (b.length > a.length ? b : a), [])
+        }
+        if (!localPoly || localPoly.length < 3) {
+          localPoly = [
+            [t.x, t.y],
+            [t.x + t.w, t.y],
+            [t.x + t.w, t.y + t.h],
+            [t.x, t.y + t.h],
+          ]
+        }
+        const placed = localPoly.map(([px, py]) => map(px, py))
+        const anchor = pieceLabelAnchor(placed, LABEL_INSET)
+        if (anchor) {
+          let size = Math.min(12, anchor.w * 0.4)
+          const maxW = anchor.w * 0.85
+          while (size > 5 && labelFont.widthOfTextAtSize(type, size) > maxW) size -= 0.5
+          const tw = labelFont.widthOfTextAtSize(type, size)
+          page.drawText(type, {
+            x: anchor.x - tw / 2,
+            y: anchor.y,
+            size,
+            font: labelFont,
+            color: rgb(0, 0, 0),
+          })
+        }
+      }
     }
     summary.push(`${type}: ${chosen.length} per sheet`)
   }
@@ -485,7 +632,11 @@ export async function fillLayout({
   const newH = emb.height * factor
   const font = await final.embedFont(StandardFonts.Helvetica)
   const stampSize = 30 // pt — small but readable on a large-format sheet
-  const stamp = `${style.style} | ${fabric.name} | ${rounded}`
+  // Stamp gains the cut mode (U3) so the operator can see at a glance whether a
+  // sheet is the die or laser layout.
+  const stamp = cutMode
+    ? `${style.style} | ${fabric.name} | ${rounded} | ${cutMode.toUpperCase()}`
+    : `${style.style} | ${fabric.name} | ${rounded}`
 
   for (let i = 1; i <= copies; i++) {
     const outPage = final.addPage([newW, newH])
@@ -499,11 +650,23 @@ export async function fillLayout({
     })
   }
 
+  // Laser DXF (U4): one sheet's cut contours, carrying the SAME fabric-stretch
+  // scale as the print (owner — the laser cuts the stretched fabric), in mm.
+  // mm = points / MM_TO_PT; the fabric factor is applied first.
+  let dxf = null
+  if (cutMode === 'laser' && dxfPolys.length) {
+    const toMm = (v) => (v * factor) / MM_TO_PT
+    const contoursMm = dxfPolys.map((poly) => poly.map(([x, y]) => [toMm(x), toMm(y)]))
+    dxf = buildDxf(contoursMm, { lineweight: Math.round(cutLineWidthMm * 100) })
+  }
+
   return {
     pdfBytes: await final.save(),
     rounded,
     copies,
     unitsPerSheet,
+    remainder,
+    dxf,
     summary,
     warnings,
     stamp,

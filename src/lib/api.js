@@ -16,6 +16,15 @@ export async function getStylePdf(id, which) {
   return new Uint8Array(await res.arrayBuffer())
 }
 
+// Fetch a style PDF by its exact stored filename (template_*.pdf / prenest_*.pdf
+// for the multi-template + per-mode schema, or the legacy fixed names).
+export async function getStylePdfFile(id, filename) {
+  if (!filename) return null
+  const res = await fetch(`/api/styles/${encodeURIComponent(id)}/${encodeURIComponent(filename)}`)
+  if (!res.ok) return null
+  return new Uint8Array(await res.arrayBuffer())
+}
+
 export async function saveStyle(payload) {
   const res = await fetch('/api/styles', {
     method: 'POST',
