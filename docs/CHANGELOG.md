@@ -3,6 +3,11 @@
 One line per change, newest first. See `ARCHITECTURE.md` for structure and
 `CLAUDE.md` for how changes are made.
 
+- fix(run): Windows preview no longer collapses to 0 height on short/scaled
+  (125-150%) windows — the flex:1 preview was the only grow/shrink child of
+  `.run-screen`, so it shrank to nothing with no page scroll to reveal it. Give
+  the Run Screen preview a 360px floor and let `.run-screen` scroll. Mac unchanged
+  (flex:1 still fills surplus height). (FIX 3)
 - feat(run): after a fill, show the final output sheet size in inches AND mm,
   read off the generated PDF's page box (not recomputed from inputs) so it
   matches the file sent to RasterLink. Shown near the export button. (FIX 2)

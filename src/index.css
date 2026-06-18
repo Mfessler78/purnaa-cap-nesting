@@ -213,6 +213,10 @@ select {
   flex-direction: column;
   padding: 12px 16px;
   gap: 10px;
+  /* On a short viewport (Windows at 125-150% display scaling) the toolbar +
+     verification panel can consume the height; let the screen scroll so the
+     preview below is reachable instead of being clipped away. */
+  overflow-y: auto;
 }
 .run-screen .toolbar {
   align-items: end;
@@ -493,6 +497,12 @@ button.secondary:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+/* Floor so the Run Screen preview can't collapse to 0 on a short/scaled window
+   (Windows at 125-150%). flex:1 still fills surplus height when there is room,
+   so Mac is unchanged. Scoped to the Run Screen; the Mapping editor is untouched. */
+.run-screen .editor {
+  min-height: 360px;
 }
 .editor-toolbar {
   display: flex;
