@@ -3,6 +3,12 @@
 One line per change, newest first. See `ARCHITECTURE.md` for structure and
 `CLAUDE.md` for how changes are made.
 
+- fix(viewer): polyfill `Promise.withResolvers` for older browsers (Chrome/Edge
+  <119, Firefox <121). pdf.js v6 calls it 27x during PDF render; without it the
+  preview silently fails (the viewer swallows render errors) on older machines
+  while the rest of the app works. No-op on modern browsers (Mac unchanged).
+  Most-likely fix for Santosh's blank preview on an older PC; revertible if it's
+  not the cause. (FIX 3 follow-up)
 - fix(run): Windows preview no longer collapses to 0 height on short/scaled
   (125-150%) windows — the flex:1 preview was the only grow/shrink child of
   `.run-screen`, so it shrank to nothing with no page scroll to reveal it. Give

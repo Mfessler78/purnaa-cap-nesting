@@ -1,3 +1,4 @@
+import './lib/polyfills.js' // must be first: shims pdf.js needs on older browsers
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
