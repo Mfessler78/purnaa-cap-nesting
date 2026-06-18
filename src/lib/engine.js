@@ -327,10 +327,11 @@ function toPdf14(bytes) {
 }
 
 // Operators that STROKE a piece's cut line in pure black at the slot's position
-// and rotation — the laser follows this black line to cut, so unlike the old
-// behavior (all guides stripped from export) the cut line is preserved in every
-// export, die-cut and laser alike (CLAUDE_CODE_LASER_VS_DIECUT.md). We generate
-// it from the same outline the clip uses (true outline, no bleed — the bleed is
+// and rotation — the LASER follows this black line to cut. Die-cut runs do NOT
+// print it (a physical die cuts the shape regardless, so the printed line would
+// only add unwanted ink); the cut line is therefore drawn for laser only, gated
+// by cutMode at the call site (CLAUDE_CODE_LASER_VS_DIECUT.md). We generate it
+// from the same outline the clip uses (true outline, no bleed — the bleed is
 // printed past the cut), falling back to the piece box when no outline matched.
 // CMYK 0,0,0,1 is pure (non-rich) black; emit AFTER the clip is popped so the
 // full line width shows, not just the inner half.
@@ -444,7 +445,7 @@ export async function fillLayout({
   guides = true,
   clipToOutline = true,
   clipBleed = 18, // points of outward bleed kept when clipping (0.25" default)
-  cutLines = true, // draw black cut lines the laser follows (preserved in export)
+  cutLines = true, // draw black cut lines the laser follows (laser only — see cutMode gate below)
   cutLineWidthMm = 1.5, // laser cut-line width; editable, confirm exact value at install
   pieceLabels = true, // print each piece's type inside it (U5) for the cut team
   cutMode = null, // 'die' | 'laser' | null — shown on the stamp; laser also emits a DXF (U4)
@@ -671,7 +672,9 @@ export async function fillLayout({
       page.pushOperators(popGraphicsState())
       // Cut line on top (after the clip is popped) so the laser has its black
       // path. Same geometry as the clip outline, but unbled and stroked black.
-      if (cutLines) {
+      // Die-cut runs skip it: the die cuts the shape, so a printed line is just
+      // unwanted ink. cutMode null (e.g. tests) keeps the historical behavior.
+      if (cutLines && cutMode !== 'die') {
         page.pushOperators(...cutLineOpsFor(t, x, y, slot.rotation, outline, cutLineWidthMm * MM_TO_PT))
       }
       // Laser DXF cut geometry — same contour as the printed cut line.

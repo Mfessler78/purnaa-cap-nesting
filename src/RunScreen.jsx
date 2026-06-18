@@ -199,6 +199,9 @@ export default function RunScreen() {
         }
         passed.unshift(
           `Cut mode: ${MODE_LABELS[mode] || mode}`,
+          mode === 'die'
+            ? 'Die cut: no printed cut line (the die cuts the shape)'
+            : `Laser cut line: ${Math.max(0, Number(cutLineMm) || 0)} mm printed around each piece`,
           ...(styleMeta.templates.length > 1
             ? [`Selected template "${variant.id}" by artwork size (${res.artboard})`]
             : []),
@@ -375,19 +378,21 @@ export default function RunScreen() {
             />
           </label>
         )}
-        <label title="Black cut line the laser follows, printed around every piece. Confirm the exact width at the laser install; 1.5 mm is the planned default. Set to 0 to omit cut lines.">
-          Cut line (mm)
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={cutLineMm}
-            onChange={(e) => {
-              setCutLineMm(e.target.value)
-              resetOutput()
-            }}
-          />
-        </label>
+        {cutMode !== 'die' && (
+          <label title="Black cut line the laser follows, printed around every piece. Confirm the exact width at the laser install; 1.5 mm is the planned default. Die-cut runs never print a cut line.">
+            Cut line (mm)
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={cutLineMm}
+              onChange={(e) => {
+                setCutLineMm(e.target.value)
+                resetOutput()
+              }}
+            />
+          </label>
+        )}
         <button
           className="primary"
           onClick={onFill}

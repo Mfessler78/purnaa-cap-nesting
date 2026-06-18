@@ -3,6 +3,10 @@
 One line per change, newest first. See `ARCHITECTURE.md` for structure and
 `CLAUDE.md` for how changes are made.
 
+- fix(engine): die-cut runs no longer print the black piece cut line — gated on
+  `cutMode === 'die'` (laser and null unchanged). RunScreen hides the "Cut line
+  (mm)" field in die mode and shows a verification line for the outcome. Updates
+  ARCHITECTURE.md §5 #6. (FIX 1)
 - fix(engine): emit the print PDF as version 1.4 with a classic xref table for
   RasterLink — save with `useObjectStreams:false` (pdf-lib's default writes a 1.5
   xref/object stream) and patch the hard-coded `%PDF-1.7` header to `%PDF-1.4`

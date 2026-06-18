@@ -167,8 +167,10 @@ These mirror `CLAUDE.md §2` and are the reason the output is correct. Full rati
    in; grow by the tunable bleed margin so each piece keeps its own print bleed.
 5. **Embed artwork once, share across all placements.** This is the fix for the old ~6×
    file-size bug. Any fill/embed change must preserve it.
-6. **Cut lines preserved in export; other guides reference-only.** Laser follows the cut
-   line, die-cut ignores it; stitch lines/text/fills are stripped from output.
+6. **Cut line printed for laser only; other guides reference-only.** The laser follows a
+   black cut line printed around each piece, so laser exports keep it. Die-cut runs do
+   **not** print it (the die cuts the shape; a printed line is just unwanted ink) — gated
+   by `cutMode === 'die'` in `engine.js`. Stitch lines/text/fills are stripped from output.
 7. **Inputs keep vectors intact; only the final export may be flattened.**
 8. **Quantity rounds UP to whole sheets (×12).** 50 caps → 60 → 5 identical sheets.
 9. **Direct-vector export is the proven path.** Ghostscript flatten is a rare fallback,
