@@ -1,47 +1,163 @@
 # CLAUDE.md — Operating Rules for This Project
 
-You are building **Purnaa Cap Nesting**, a local web app that fills pre-nested print layouts with customer artwork for cap manufacturing. Read `docs/SPEC.md` for the full functional specification. This file governs HOW you work. Follow it on every session. All other documentation lives in `docs/` (see `docs/README.md`).
+You are working on **Purnaa Cap Nesting**, a local single-user web app that fills
+pre-nested print layouts with customer artwork for cap manufacturing. The MVP is **built
+and working**. We are now in an **optimization phase**: improving the program piece by
+piece without breaking it, keeping the file structure clean, and preventing back-end bloat.
 
-## Prime directives
+- For *what the app does* and *where things live*, read `docs/ARCHITECTURE.md` first.
+- For *the full functional spec*, read `docs/SPEC.md`.
+- This file governs **how you work**. Follow it every session.
 
-1. **MVP first, always.** Build the smallest thing that works end-to-end before adding anything. Do not build features out of order. The build order in `docs/SPEC.md` is mandatory, not a suggestion.
-2. **Stop and confirm before scope changes.** If you think something in `docs/SPEC.md` is wrong, incomplete, or should be done differently, STOP and ask me before changing course. Do not silently reinterpret requirements.
-3. **One thing at a time.** Complete and let me test each milestone before starting the next. After finishing a milestone, tell me exactly how to run and test it, then wait.
-4. **No silent magic.** Never auto-scale, auto-rotate, or "fix" artwork in ways not specified. When the spec says refuse-and-flag, you refuse and flag — you never quietly correct.
+---
 
-## Build order (MVP path — do not deviate)
+## 0. Read before you touch anything
 
-Build these in sequence. Do not start a milestone until I confirm the previous one works.
+At the start of a task, before editing code:
 
-- **M0 — Skeleton.** Project scaffolds, runs locally with `npm run dev`, opens in browser, shows an empty shell. Git initialized.
-- **M1 — Manual labeling tool.** Upload a pre-nest PDF, render it, let me DRAW rectangular boxes over slots and label each with piece_type + instance + rotation (0/90/180/270). Save as a style's slot map (JSON on disk). Same for the customer template (piece_type only). NO auto-detection yet.
-- **M2 — Fill + rotate + place.** Given a style, an uploaded customer artwork PDF, and a quantity, place artwork into slots by piece_type, rotated per slot. Replicate one source per piece_type into all matching slots. Round quantity UP to next multiple of 12, discard unfilled slots.
-- **M3 — Stamp + fabric scale.** Add the corner metadata stamp (STYLE | FABRIC | QTY) and the global fabric-stretch scale factor (editable fabric table). 
-- **M4 — Preview + verification gate.** Visual preview before export; block export on missing/mismatched pieces or scale mismatch.
-- **M5 — Export.** Flattened, RasterLink-compatible vector PDF. Strip guide layers/fills.
-- **M6 — Auto-detect (LAST, riskiest).** Only after M1–M5 work: auto-detect closed paths in the pre-nest PDF as clickable slots, keeping manual box-drawing as a permanent fallback.
+1. Read `docs/ARCHITECTURE.md` (the map — what each file does, the data flow, the
+   invariants). Do not rediscover the architecture by grepping the whole tree.
+2. If the task touches a specific module, read **only** that module and its direct
+   collaborators (ARCHITECTURE.md lists them). Do not load the whole `src/` tree.
+3. If anything in ARCHITECTURE.md looks stale or wrong, **say so and ask** — do not
+   silently work around it.
 
-**Critical:** RasterLink compatibility (M5) is the highest-risk unknown after auto-detect. As soon as M5 produces any PDF, I will test it in RasterLink. Build M5 to be easy to re-export with different flatten settings so we can iterate on compatibility fast.
+Goal of this discipline: keep each change small, well-scoped, and cheap.
 
-## Technical constraints
+---
 
-- **Stack:** Keep it simple and local. Prefer a single modern framework I can run with `npm run dev` (your choice — React/Vite is fine). Avoid heavyweight backends; local file storage (JSON + the PDFs) is enough. If you must add a small local server for file handling, keep it minimal and document why.
-- **No cloud, no accounts, no auth, no deployment.** This runs on one Mac in a browser. Do not add login, hosting, or external services.
-- **PDF handling:** Input PDFs keep their vector paths intact (do NOT flatten inputs). Only the final EXPORT is flattened. Pick a PDF library that can read vector paths and write flattened vector PDF; tell me what you chose and why.
-- **Coordinates:** Slots are stored as bounding boxes. Template and pre-nest are DIFFERENT artboards/coordinate spaces — match by piece_type label, never by absolute coordinates across files. Artwork's position relative to its template piece is the canonical upright source.
-- **Rotation is per-slot**, read from the saved map. NEVER infer rotation from piece_type. Pieces of the same type may have different rotations.
-- **No scale-to-fit. Ever.** Customer artwork and template piece must be identical physical scale. If they differ, FLAG AND REFUSE — do not resize. The only scaling is the global fabric-stretch factor at export.
-- **Cut lines are PRESERVED in the export** (the laser follows the black cut line; die-cut operators ignore it). This is an intentional reversal of the old "strip all guides" rule — see `docs/CLAUDE_CODE_LASER_VS_DIECUT.md`. **Other guides (stitch lines, text, color fills) stay reference only:** ignore them in logic and strip them from output.
+## 1. Prime directives (optimization phase)
 
-## Working style
+1. **Don't break working behavior.** The MVP works and prints correctly through
+   RasterLink. Every change must preserve current output unless the task explicitly says
+   to change it. When in doubt, preserve.
+2. **One small change at a time.** Make the smallest change that achieves the goal. Finish
+   it, tell me exactly how to verify it, then stop and wait. Do not bundle unrelated
+   improvements.
+3. **Stop and confirm before structural changes.** Moving files, renaming, changing the
+   data-on-disk format, changing a module's public interface, or adding a dependency —
+   propose it first and wait for my yes.
+4. **No silent magic.** Never auto-scale, auto-rotate, or "fix" artwork in ways not
+   specified. Where the spec says refuse-and-flag, you refuse and flag.
+5. **No bloat.** Prefer deleting to adding. Do not add a dependency when a few lines of
+   local code will do. Do not leave dead code, commented-out blocks, or "just in case"
+   abstractions behind.
 
-- Use git. Commit after each working milestone so I can roll back. Use clear commit messages.
-- Read the test PDFs in `./test-files/` to develop against real data, not assumptions.
-- When something is ambiguous, ask me — do not guess and build on the guess.
-- Keep the UI minimal, clear, and oriented around the human verification steps (Mila aligns; Santosh runs and approves).
-- Explain what you're about to do before large changes. Keep me oriented.
-- Tell me, at the end of each milestone, the exact terminal commands and browser steps to test it.
+---
 
-## What "done" looks like for the MVP
+## 2. The hard constraints (never break without explicit sign-off)
 
-A print operator can: pick a style, pick a fabric, enter a quantity, upload Mila-approved artwork, see a correct filled+rotated+stamped preview, and export a PDF that RasterLink opens and prints cleanly. Manual labeling is acceptable for MVP; auto-detection is a later enhancement.
+These are correctness invariants. Optimization must not violate them. They are explained
+in full in `docs/ARCHITECTURE.md §Invariants`, summarized here:
+
+- **No auto-scaling / no scale-to-fit.** Size mismatch = refuse + flag, never resize. The
+  only scaling is the global fabric-stretch factor at export.
+- **Match by `piece_type` label**, never by absolute coordinates across files (template
+  and pre-nest are different coordinate spaces).
+- **Rotation is per-slot**, read from the saved map — never inferred from piece type.
+- **Cut lines are preserved in export** (laser follows them; die-cut ignores them). Other
+  guides (stitch lines, text, fills) are reference-only: ignored in logic, stripped from
+  output. See `docs/CLAUDE_CODE_LASER_VS_DIECUT.md`.
+- **Inputs keep their vectors intact;** only the final export may be flattened.
+- **Local only.** No cloud, no auth, no accounts, no deployment. One Mac, one browser.
+- **Direct-vector export is the proven path.** Ghostscript flatten is a rarely-used
+  fallback, intentionally left as-is. Do not "improve" it without being asked.
+
+If a change seems to require breaking one of these, **stop and ask** — that is a
+spec-level decision, not an implementation detail.
+
+---
+
+## 3. How to make a change
+
+1. **Scope it.** State, in one or two sentences, what you're changing and which files
+   you'll touch. Confirm the files against ARCHITECTURE.md.
+2. **Check the blast radius.** List what else imports or depends on what you're editing
+   (ARCHITECTURE.md's dependency notes help). Name anything that could break.
+3. **Make the minimal edit.** Touch the fewest files possible. Keep changes local to the
+   module that owns the concern. Don't refactor adjacent code "while you're in there."
+4. **Test it.** Run the relevant test(s) in `tests/`. If the change isn't covered by a
+   test and is non-trivial, add a focused test for it.
+5. **Report.** Tell me exactly what changed, why, the terminal/browser steps to verify,
+   and what to watch for. Then stop.
+
+If a task is bigger than one small change, **break it into an ordered list of small
+changes** and do them one at a time, waiting for confirmation between each.
+
+---
+
+## 4. File hygiene (where things go)
+
+Keep the working tree clean. The canonical layout is in `docs/ARCHITECTURE.md`; the rules:
+
+- **Application source** lives in `src/`. Logic in `src/lib/`, React UI as `src/*.jsx`.
+- **The tiny dev-server middleware** lives in `server/`. Keep it minimal.
+- **Style data** lives in `styles/<STYLE_NAME>/` as `style.json` + `prenest.pdf` +
+  `template.pdf`. Do not invent new per-style file shapes without sign-off.
+- **Real test PDFs** live in `test-files/`; **test fixtures/specs** in `tests/`. Don't mix.
+- **Docs** live in `docs/`. Superseded docs go to `docs/archive/`, they are not deleted
+  silently and not left at root.
+- **Scratch/experiments** go in `dev/`. Never leave scratch files in `src/`, `server/`,
+  or the repo root.
+- **Never create a new top-level folder or root-level file** without asking. The root is
+  already crowded; new clutter there is a regression.
+- **Do not edit, add to, or reorganize** `node/`, `node_modules/`, or `dist/`. These are
+  generated/vendored and should not be in scope. (If git is tracking them, flag it — see
+  ARCHITECTURE.md cleanup targets — but don't act without sign-off.)
+
+When you add a file, say in your report **why it goes where it goes**. When you're tempted
+to add a file, first check whether an existing file is the right home.
+
+---
+
+## 5. Preventing back-end bloat
+
+The "back end" is the Vite middleware in `server/` plus `src/lib/`. Keep it lean:
+
+- **No new dependencies** without sign-off. We already have `pdf-lib`, `pdfjs-dist`, and
+  an optional Ghostscript shell-out — that is the whole PDF stack. Prefer them.
+- **No duplicated logic.** If two places do the same thing, propose consolidating into one
+  function in `src/lib/` rather than copy-pasting.
+- **No speculative abstraction.** Don't add config systems, plugin layers, or generalized
+  helpers for cases we don't have yet.
+- **Watch output size.** The fill engine had a duplication bug (embedded artwork once per
+  piece-type → ~6× file size). Any change to fill/embed must keep the
+  **embed-once-share-everywhere** behavior. If a change could grow export size, measure
+  before/after and report it.
+- **Delete as you go.** If you replace code, remove the old code in the same change. Leave
+  the tree smaller or the same, not larger.
+
+---
+
+## 6. Tooling & workflow
+
+- The app runs with `npm run dev` (Vite). There is no separate server process.
+- Use git. Commit after each verified small change with a clear, specific message
+  (`fix:`, `refactor:`, `perf:`, `chore:` prefixes preferred). Commit so I can roll back
+  one change at a time.
+- Develop against the real PDFs in `test-files/`, not assumptions.
+- Keep `docs/ARCHITECTURE.md` current: if a change adds/removes/moves a module or alters
+  the data flow or an invariant, **update ARCHITECTURE.md in the same change** and say you
+  did.
+- Maintain a one-line-per-change note in `docs/CHANGELOG.md` (create it if absent) so the
+  next session — and the chat assistant I plan with — can see what moved recently without
+  re-reading code.
+
+---
+
+## 7. When something is ambiguous
+
+Ask. Do not guess and build on the guess. A short clarifying question is cheaper than a
+wrong change that has to be unwound. One question at a time; address what you can before
+asking.
+
+---
+
+## 8. Definition of done for an optimization change
+
+- Behavior preserved (or changed exactly as requested), verified against `test-files/`.
+- Relevant tests pass; a focused test added if the change warranted one.
+- No new dependency, no dead code, tree no larger than before.
+- `docs/ARCHITECTURE.md` and `docs/CHANGELOG.md` updated if structure/flow changed.
+- A clear report: what changed, why, how to verify, what to watch.
+- Committed with a clear message. Then you stop and wait.
