@@ -10,7 +10,17 @@ import {
   rotVec,
   iou,
   offsetPolygon,
+  dropOppositeWoundHoles,
 } from '../src/lib/engine.js'
+
+// Build a subpath (the engine's {op,pts} segment shape) for a rectangle, walked
+// either CCW (positive area) or CW (negative area).
+const rectSubpath = (x, y, w, h, ccw = true) => {
+  const corners = ccw
+    ? [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+    : [[x, y], [x, y + h], [x + w, y + h], [x + w, y]]
+  return corners.map(([px, py], i) => ({ op: i === 0 ? 'm' : 'l', pts: [px, py] }))
+}
 
 // ---- pure helpers: the subtle, breakage-prone math ----
 
@@ -78,6 +88,28 @@ test('offsetPolygon is a no-op for margin <= 0', () => {
     [10, 10],
   ]
   assert.equal(offsetPolygon(sq, 0), sq)
+})
+
+test('dropOppositeWoundHoles collapses a cut-line band to its outer shape', () => {
+  // Production templates draw a piece outline as an outer edge plus a slightly
+  // larger inner edge wound the OTHER way (a band). Emitted as one nonzero clip
+  // those cancel in the interior → empty clip → blank piece. Keep only the outer.
+  const outer = rectSubpath(0, 0, 100, 100, false) // CW (negative area), larger
+  const inner = rectSubpath(5, 5, 90, 90, true) // CCW (positive area), nested inside
+  const kept = dropOppositeWoundHoles([outer, inner])
+  assert.equal(kept.length, 1)
+  assert.equal(kept[0], outer)
+})
+
+test('dropOppositeWoundHoles leaves clean outlines untouched', () => {
+  // A single contour: nothing to drop.
+  const one = [rectSubpath(0, 0, 100, 100, true)]
+  assert.deepEqual(dropOppositeWoundHoles(one), one)
+  // Two DISJOINT contours (e.g. separate lobes): both are real, keep both even
+  // when their windings differ — only a nested opposite-wound hole is dropped.
+  const a = rectSubpath(0, 0, 40, 40, true)
+  const b = rectSubpath(100, 0, 40, 40, false)
+  assert.equal(dropOppositeWoundHoles([a, b]).length, 2)
 })
 
 // ---- integration: fillLayout against a real skate style + Ambler art ----

@@ -118,6 +118,82 @@ function flattenSubpath(sp, steps = 12) {
   return poly
 }
 
+// Signed area of a closed polygon (CCW positive). Used to tell a contour's
+// winding direction apart so opposite-wound "hole" contours can be detected.
+function polygonArea(poly) {
+  let a = 0
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i]
+    const [x2, y2] = poly[(i + 1) % poly.length]
+    a += x1 * y2 - x2 * y1
+  }
+  return a / 2
+}
+
+// Even-odd point-in-polygon (ray cast). Used to confirm one contour sits inside
+// another before treating it as that contour's hole.
+function pointInPolygon([px, py], poly) {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i]
+    const [xj, yj] = poly[j]
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+// Production templates routinely draw each piece's cut outline as a closed BAND:
+// an outer edge plus a slightly larger inner edge with the OPPOSITE winding. When
+// every subpath of that outline is emitted as one clip path, PDF's nonzero rule
+// makes the two opposite-wound contours cancel across the interior, leaving only
+// the thin ring between them — an effectively empty clip, so the placed artwork
+// vanishes (the piece prints blank). This drops the inner hole contour(s) so the
+// outline collapses to the solid outer piece shape. Single-contour outlines (a
+// plain crescent, etc.) and genuinely disjoint contours are left untouched.
+export function dropOppositeWoundHoles(subpaths) {
+  if (subpaths.length < 2) return subpaths
+  const polys = subpaths.map((sp) => flattenSubpath(sp))
+  const areas = polys.map(polygonArea)
+  const boxes = polys.map((p) => {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const [x, y] of p) {
+      if (x < minX) minX = x
+      if (y < minY) minY = y
+      if (x > maxX) maxX = x
+      if (y > maxY) maxY = y
+    }
+    return { minX, minY, maxX, maxY }
+  })
+  const centroid = (p) => {
+    let sx = 0
+    let sy = 0
+    for (const [x, y] of p) {
+      sx += x
+      sy += y
+    }
+    return [sx / p.length, sy / p.length]
+  }
+  const encloses = (o, i) =>
+    boxes[o].minX <= boxes[i].minX &&
+    boxes[o].minY <= boxes[i].minY &&
+    boxes[o].maxX >= boxes[i].maxX &&
+    boxes[o].maxY >= boxes[i].maxY
+  return subpaths.filter((sp, i) => {
+    if (polys[i].length < 3) return true
+    const c = centroid(polys[i])
+    for (let j = 0; j < subpaths.length; j++) {
+      if (j === i || polys[j].length < 3) continue
+      if (Math.abs(areas[j]) <= Math.abs(areas[i])) continue // j must be the larger (outer) one
+      if (Math.sign(areas[j]) === Math.sign(areas[i])) continue // and wound the opposite way
+      if (encloses(j, i) && pointInPolygon(c, polys[j])) return false // i is a hole inside j
+    }
+    return true
+  })
+}
+
 // Grow a closed polygon outward by `margin` points so a piece keeps its own
 // print bleed when clipped. Each edge is pushed out along its outward normal
 // (winding-aware) and consecutive edges re-intersected; sharp convex corners
@@ -475,7 +551,12 @@ export async function fillLayout({
             best = o
           }
         }
-        if (best && bestIoU >= OUTLINE_MATCH_IOU) matchedOutlines.set(type, best)
+        if (best && bestIoU >= OUTLINE_MATCH_IOU) {
+          // Normalize the outline before any consumer uses it: collapse a
+          // cut-line "band" (outer + opposite-wound inner edge) to its solid
+          // outer shape, so the clip doesn't cancel to an empty ring.
+          matchedOutlines.set(type, { ...best, subpaths: dropOppositeWoundHoles(best.subpaths) })
+        }
       }
     } catch (err) {
       warnings.push(`Could not read piece outlines for clipping (${err.message}); used rectangles.`)
