@@ -40,6 +40,15 @@ function pickTemplate(templates, artSize) {
 // heavy (CPU-blocking) step runs.
 const tick = () => new Promise((r) => setTimeout(r))
 
+// Format a PDF page size (points) as the real-world output size in inches AND
+// mm. Read straight off the generated PDF's page box (not recomputed from
+// inputs) so it always equals the file that goes to RasterLink.
+function fmtOutputSize(wPt, hPt) {
+  const inch = (pt) => (pt / 72).toFixed(2)
+  const mm = (pt) => Math.round((pt / 72) * 25.4)
+  return `${inch(wPt)} × ${inch(hPt)} in  (${mm(wPt)} × ${mm(hPt)} mm)`
+}
+
 export default function RunScreen() {
   const [styles, setStyles] = useState([])
   const [styleId, setStyleId] = useState('')
@@ -436,6 +445,11 @@ export default function RunScreen() {
               </span>
             ) : (
               <>
+                {result?.pdf && (
+                  <div className="output-size" title="Final page size of the print PDF that goes to RasterLink, after fabric stretch — read from the generated file.">
+                    Output sheet size: {fmtOutputSize(result.pdf.width, result.pdf.height)}
+                  </div>
+                )}
                 <label className="approve-label">
                   <input
                     type="checkbox"

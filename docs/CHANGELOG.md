@@ -3,6 +3,9 @@
 One line per change, newest first. See `ARCHITECTURE.md` for structure and
 `CLAUDE.md` for how changes are made.
 
+- feat(run): after a fill, show the final output sheet size in inches AND mm,
+  read off the generated PDF's page box (not recomputed from inputs) so it
+  matches the file sent to RasterLink. Shown near the export button. (FIX 2)
 - fix(engine): die-cut runs no longer print the black piece cut line — gated on
   `cutMode === 'die'` (laser and null unchanged). RunScreen hides the "Cut line
   (mm)" field in die mode and shows a verification line for the outcome. Updates
