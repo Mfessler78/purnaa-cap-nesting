@@ -385,9 +385,12 @@ function placedCutPolys(t, ax, ay, rotation, outline) {
 // can tell panels apart. It must land INSIDE the cut line but within the seam-
 // allowance band (just inside the edge), so it is hidden once the panel is sewn
 // — a label printed in the body would show on the finished cap. We hug the
-// bottom cut edge (page-bottom, so the piece's rotation doesn't matter), centred
-// on the widest interior run there, with small shrink-to-fit text. Exact spot
-// isn't critical (owner) as long as it's inside the line and fully legible.
+// piece's OWN bottom edge (in template space) and draw the text rotated with the
+// slot, so it sits in the same spot on every panel and stays readable however the
+// cut piece is turned (orientation doesn't matter — pieces are moved around). The
+// label is left-justified inside the widest interior run there, with small
+// shrink-to-fit text. Exact spot isn't critical (owner) as long as it's inside
+// the line and fully legible.
 
 // Interior horizontal runs [x0,x1] where scan line `y` is inside the polygon.
 // Even-odd edge crossings, so concave shapes (visor crescents) split correctly.
@@ -408,9 +411,10 @@ function interiorSpansAtY(poly, y) {
 }
 
 // Candidate label bands hugging the BOTTOM cut edge, ordered bottom-first. We
-// only scan the lower part of the piece (never the middle), each band the widest
-// interior run at that height, so the label always sits in the seam band right
-// inside the cut line — even for crown (top) panels whose bottom is curved.
+// only scan the lower part of the piece (never the middle); each band carries the
+// widest interior run at that height ({ y, x0: left edge, w: width }), so the
+// label sits in the seam band right inside the cut line — even for crown (top)
+// panels whose bottom is curved, or crescent visors with no straight edge.
 function bottomBands(poly, inset) {
   let minY = Infinity
   let maxY = -Infinity
@@ -430,7 +434,7 @@ function bottomBands(poly, inset) {
     for (const [a, b] of interiorSpansAtY(poly, y)) {
       if (!widest || b - a > widest[1] - widest[0]) widest = [a, b]
     }
-    if (widest) bands.push({ y, x: (widest[0] + widest[1]) / 2, w: widest[1] - widest[0] })
+    if (widest) bands.push({ y, x0: widest[0], w: widest[1] - widest[0] })
   }
   return bands
 }
@@ -660,6 +664,50 @@ export async function fillLayout({
     // replicated per copy. No partial fill, no discards.
     const outline = matchedOutlines.get(type)
     const chosen = [...slots].sort((a, b) => a.instance - b.instance)
+    // Piece-ID label geometry, computed ONCE per type in the piece's own
+    // (template) coordinates — identical for every slot of this type. It is
+    // mapped into each slot and drawn rotated with that slot below. Anchored to
+    // the piece's own bottom-left, left-justified inside the widest interior run
+    // (so crescent visors keep it inside the outline, never floating in the bbox
+    // void) with a 2 mm margin from the run's real left edge.
+    let labelGeom = null
+    if (pieceLabels) {
+      let localPoly
+      if (outline) {
+        localPoly = outline.subpaths
+          .map((sp) => flattenSubpath(sp))
+          .reduce((a, b) => (b.length > a.length ? b : a), [])
+      }
+      if (!localPoly || localPoly.length < 3) {
+        localPoly = [
+          [t.x, t.y],
+          [t.x + t.w, t.y],
+          [t.x + t.w, t.y + t.h],
+          [t.x, t.y + t.h],
+        ]
+      }
+      const bands = bottomBands(localPoly, LABEL_INSET)
+      if (bands.length) {
+        let pMinY = Infinity
+        let pMaxY = -Infinity
+        for (const [, py] of localPoly) {
+          if (py < pMinY) pMinY = py
+          if (py > pMaxY) pMaxY = py
+        }
+        const pieceH = pMaxY - pMinY
+        let size = Math.min(8, Math.max(4.5, pieceH * 0.035))
+        // Fit the label in the run minus a 2 mm margin on each side. Prefer the
+        // LOWEST band that fits; else the widest band, shrunk to fit.
+        const fits = (b, s) => labelFont.widthOfTextAtSize(type, s) <= b.w - LABEL_INSET * 2
+        let band = bands.find((b) => fits(b, size))
+        if (!band) {
+          band = bands.reduce((a, b) => (b.w > a.w ? b : a), bands[0])
+          while (size > 4 && !fits(band, size)) size -= 0.5
+        }
+        // Local anchor: 2 mm inside the run's left edge, on the band's baseline.
+        labelGeom = { x: band.x0 + LABEL_INSET, y: band.y, size }
+      }
+    }
     for (const slot of chosen) {
       const cx = slot.box.x + slot.box.w / 2
       const cy = slot.box.y + slot.box.h / 2
@@ -682,50 +730,19 @@ export async function fillLayout({
         for (const poly of placedCutPolys(t, x, y, slot.rotation, outline)) dxfPolys.push(poly)
       }
       // Piece-ID label, drawn last (above the artwork, never inside the clip) so
-      // it is fully visible. Anchored in the bottom seam band of the placed piece.
-      if (pieceLabels) {
-        const map = slotPointMapper(t, x, y, slot.rotation)
-        let localPoly
-        if (outline) {
-          localPoly = outline.subpaths
-            .map((sp) => flattenSubpath(sp))
-            .reduce((a, b) => (b.length > a.length ? b : a), [])
-        }
-        if (!localPoly || localPoly.length < 3) {
-          localPoly = [
-            [t.x, t.y],
-            [t.x + t.w, t.y],
-            [t.x + t.w, t.y + t.h],
-            [t.x, t.y + t.h],
-          ]
-        }
-        const placed = localPoly.map(([px, py]) => map(px, py))
-        const bands = bottomBands(placed, LABEL_INSET)
-        if (bands.length) {
-          let pMinY = Infinity
-          let pMaxY = -Infinity
-          for (const [, py] of placed) {
-            if (py < pMinY) pMinY = py
-            if (py > pMaxY) pMaxY = py
-          }
-          const pieceH = pMaxY - pMinY
-          let size = Math.min(12, Math.max(6, pieceH * 0.05))
-          // Pick the LOWEST band whose run fits the label at `size` (hugs the cut
-          // line); if none fits, take the widest band and shrink to fit it.
-          let chosen = bands.find((b) => labelFont.widthOfTextAtSize(type, size) <= b.w * 0.9)
-          if (!chosen) {
-            chosen = bands.reduce((a, b) => (b.w > a.w ? b : a), bands[0])
-            while (size > 4 && labelFont.widthOfTextAtSize(type, size) > chosen.w * 0.9) size -= 0.5
-          }
-          const tw = labelFont.widthOfTextAtSize(type, size)
-          page.drawText(type, {
-            x: chosen.x - tw / 2,
-            y: chosen.y,
-            size,
-            font: labelFont,
-            color: rgb(0, 0, 0),
-          })
-        }
+      // it is fully visible. The per-type local anchor is mapped into this slot
+      // and the text is drawn rotated with the slot, so it rides on the piece's
+      // own bottom-left seam band in every orientation.
+      if (labelGeom) {
+        const [lx, ly] = slotPointMapper(t, x, y, slot.rotation)(labelGeom.x, labelGeom.y)
+        page.drawText(type, {
+          x: lx,
+          y: ly,
+          size: labelGeom.size,
+          font: labelFont,
+          rotate: degrees(slot.rotation),
+          color: rgb(0, 0, 0),
+        })
       }
     }
     summary.push(`${type}: ${chosen.length} per sheet`)

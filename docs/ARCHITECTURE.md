@@ -9,7 +9,7 @@
 > Companion docs: `CLAUDE.md` (how to work), `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-06-18. Update the date when you change this file.
+> Last updated: 2026-06-19. Update the date when you change this file.
 
 ---
 
@@ -40,6 +40,7 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
   │  4. Clip to each piece's true outline + tunable bleed margin           │
   │  5. Embed artwork ONCE, share across all placements (size control)     │
   │  6. Round qty UP to whole sheets (×12); emit N identical pages         │
+  │  6b. Print a per-piece ID label inside each panel (cut-team reference) │
   │  7. Stamp corner (STYLE | FABRIC | QTY) + apply fabric-stretch scale   │
   └───────────────────────────────────────────────────────────────────────┘
         │
@@ -57,6 +58,21 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
 
 The **only** scaling in the whole pipeline is the global fabric-stretch factor at the very
 end. Everything else is 1:1.
+
+**Per-piece ID label (step 6b, distinct from the corner stamp).** Separately from the
+single `STYLE | FABRIC | QTY` corner stamp, `engine.js` prints each panel's `piece_type`
+name *inside that panel* so the cut/sew team can tell pieces apart. Implementation lives in
+`fillLayout` (the "Piece-ID labels (U5)" block) with helpers `bottomBands()` /
+`interiorSpansAtY()`. It is computed once per piece-type in the piece's own (template)
+coordinates: a bottom-edge interior-span scan picks the lowest band that fits the text
+inside the *true outline* (so concave crescent visors keep it inside the shape, never in
+the bounding-box void), the label is left-justified ~2 mm inside that run's real left edge,
+and the text is **drawn rotated with the slot** so it rides on the same physical spot of
+every panel regardless of orientation (orientation is irrelevant — pieces are moved around
+after cutting). Font is small shrink-to-fit (~4.5–8 pt). The label is **reference-only**:
+it sits inside the cut line in the seam band, is hidden once sewn, and never overlaps a
+neighbour or the clip region (invariants §5.4/§5.6 preserved). It does not affect placement,
+rotation, clipping, or the export path. Gated by the `pieceLabels` flag (default on).
 
 ---
 

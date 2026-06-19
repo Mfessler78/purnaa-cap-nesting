@@ -3,6 +3,15 @@
 One line per change, newest first. See `ARCHITECTURE.md` for structure and
 `CLAUDE.md` for how changes are made.
 
+- refactor(engine): per-piece ID label is now smaller (4.5–8 pt, was 6–12 pt) and
+  anchored to each piece's own bottom-left seam band — computed once per type in
+  template space, left-justified 2 mm inside the widest interior run, and drawn
+  rotated with the slot so it rides the same spot on every panel in any
+  orientation (was always page-bottom/upright, centred). Crescent visors stay
+  inside the outline via the interior-span scan. Reference-only; placement,
+  rotation, clip, cut-line and export untouched. ARCHITECTURE.md now documents the
+  label (previously omitted).
+
 - fix(viewer): polyfill `Promise.withResolvers` for older browsers (Chrome/Edge
   <119, Firefox <121). pdf.js v6 calls it 27x during PDF render; without it the
   preview silently fails (the viewer swallows render errors) on older machines
