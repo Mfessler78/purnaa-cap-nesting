@@ -9,11 +9,17 @@ dist/
 *.log
 .DS_Store
 
-# Customer artwork & print layouts — DATA, never to GitHub.
+# Customer artwork & print layouts — DATA, never to GitHub (privacy).
 # Synced between machines via the backup folder (P drive), not git.
+# The WHOLE styles/ folder stays local: mapping JSON + PDFs. Only the fabric
+# list (data/fabrics.json) is shared via git.
 test-files/
-styles/**/*.pdf
+styles/
 dev/
+
+# Adobe Illustrator source artwork — owner's temporary working folder while
+# creating templates. Never to GitHub, and intentionally NOT in P-drive backups.
+AI files of PRENEST and TEMPLATES/
 
 # Local backup output and machine-local backup state
 backups/

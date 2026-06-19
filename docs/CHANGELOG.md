@@ -33,3 +33,8 @@ One line per change, newest first. See `ARCHITECTURE.md` for structure and
   printed blank (DAD HAT OSFM PUR60203, Forest2 art: 14.3 MB file, no fill). Now
   the inner hole is dropped so the clip is the solid piece shape. No-op for clean
   single-contour outlines. Added regression tests.
+
+- chore(git): stop tracking styles/ (mapping JSON + PDFs) and the "AI files of
+  PRENEST and TEMPLATES/" artwork folder; both are private and now gitignored.
+  Only data/fabrics.json is shared via git; styles travel via P-drive backups.
+  Working files kept on disk (git rm --cached). History not rewritten.
