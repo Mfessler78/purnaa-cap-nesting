@@ -37,17 +37,29 @@ if [ -z "$LATEST" ] || [ ! -d "$LATEST/styles" ]; then
   exit 1
 fi
 
-# Confirm before overwriting local styles - this pulls the P drive's copy on top.
-ANS="$(osascript -e "display dialog \"This will update this computer's styles and fabric list from the latest P-drive backup ($(basename "$LATEST")). Your program code is not affected. Continue?\" buttons {\"Cancel\",\"Update styles\"} default button \"Update styles\"" -e 'button returned of result' 2>/dev/null)"
+# Confirm before mirroring - this makes local styles MATCH the backup exactly:
+# new/renamed styles come in, and styles not in the backup are removed locally.
+ANS="$(osascript -e "display dialog \"This will make this computer's styles match the latest P-drive backup ($(basename "$LATEST")) exactly: new and renamed styles are added, and any local style NOT in that backup is removed. The fabric list is also updated. Your program code is not affected. Continue?\" buttons {\"Cancel\",\"Update styles\"} default button \"Update styles\"" -e 'button returned of result' 2>/dev/null)"
 if [ "$ANS" != "Update styles" ]; then
   echo "  Cancelled - nothing changed."
   exit 0
 fi
 
 echo ""
-echo "  Copying the latest styles from the P drive..."
+echo "  Updating styles from the P drive (mirroring the latest backup)..."
 mkdir -p styles
-# Overlay the backup's styles on top of local (adds/updates; never deletes others).
+# 1. Remove local style folders NOT in the latest backup. The backup is a full copy
+#    of the host, so a folder missing from it was deleted or renamed on the host;
+#    dropping it here keeps local an exact mirror (no stale or duplicate styles).
+for local in styles/*/; do
+  [ -d "$local" ] || continue
+  name="$(basename "$local")"
+  if [ ! -e "$LATEST/styles/$name" ]; then
+    rm -rf "$local"
+    echo "  removed (not in backup): $name"
+  fi
+done
+# 2. Copy every style from the latest backup on top of local (adds new, updates changed).
 cp -R "$LATEST/styles/." styles/ || { popup "Could not copy the styles. Make sure the P drive is still connected, then try again." stop; exit 1; }
 
 # Fabric list only - never touch this machine's local backup.json settings.

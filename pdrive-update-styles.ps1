@@ -24,13 +24,23 @@ try {
   if (-not $latest -or -not (Test-Path (Join-Path $latest.FullName 'styles'))) {
     Show-Msg 'No style backups were found on the P drive yet. Back up styles from the host first (the app''s "Back up now" button).' 48; exit 1
   }
-  if (-not (Ask-Continue "This will update this computer's styles and fabric list from the latest P-drive backup ($($latest.Name)). Your program code is not affected. Continue?")) {
+  if (-not (Ask-Continue "This will make this computer's styles match the latest P-drive backup ($($latest.Name)) exactly: new and renamed styles are added, and any local style NOT in that backup is removed. The fabric list is also updated. Your program code is not affected. Continue?")) {
     Write-Host '  Cancelled - nothing changed.'; exit 0
   }
-  Write-Host '  Copying the latest styles from the P drive...'
+  Write-Host '  Updating styles from the P drive (mirroring the latest backup)...'
   if (-not (Test-Path 'styles')) { New-Item -ItemType Directory -Path 'styles' | Out-Null }
-  # Overlay the backup's styles on top of local (adds/updates; never deletes others).
-  Copy-Item -Path (Join-Path $latest.FullName 'styles\*') -Destination 'styles' -Recurse -Force
+  $backupStyles = Join-Path $latest.FullName 'styles'
+  # 1. Remove local style folders NOT in the latest backup. The backup is a full copy
+  #    of the host, so a folder missing from it was deleted or renamed on the host;
+  #    dropping it here keeps local an exact mirror (no stale or duplicate styles).
+  Get-ChildItem -Path 'styles' -Directory | ForEach-Object {
+    if (-not (Test-Path (Join-Path $backupStyles $_.Name))) {
+      Remove-Item -Path $_.FullName -Recurse -Force
+      Write-Host ("  removed (not in backup): " + $_.Name)
+    }
+  }
+  # 2. Copy every style from the latest backup on top of local (adds new, updates changed).
+  Copy-Item -Path (Join-Path $backupStyles '*') -Destination 'styles' -Recurse -Force
   # Fabric list only - never touch this machine's local backup.json settings.
   $fab = Join-Path $latest.FullName 'data\fabrics.json'
   if (Test-Path $fab) {

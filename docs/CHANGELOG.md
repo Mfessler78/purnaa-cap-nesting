@@ -3,6 +3,15 @@
 One line per change, newest first. See `ARCHITECTURE.md` for structure and
 `CLAUDE.md` for how changes are made.
 
+- fix(update-styles): "Update styles" now mirrors the latest P-drive backup
+  instead of only overlaying it. It still adds new/renamed styles, but now also
+  removes local style folders absent from that backup, so a machine ends up an
+  exact match (no stale or duplicate folders from old renames/deletes). Each
+  backup is already a full copy of the host, so the latest snapshot is the
+  authoritative set. Touches the two import launchers only (`UPDATE STYLES FOR
+  MAC.command`, `pdrive-update-styles.ps1`); no app/engine code. The confirmation
+  dialog now warns that local styles not in the backup will be removed.
+
 - refactor(engine): per-piece ID label is now smaller (4.5–8 pt, was 6–12 pt) and
   anchored to each piece's own bottom-left seam band — computed once per type in
   template space, left-justified 2 mm inside the widest interior run, and drawn
