@@ -3,6 +3,14 @@
 One line per change, newest first. See `ARCHITECTURE.md` for structure and
 `CLAUDE.md` for how changes are made.
 
+- fix(publish): "PUBLISH UPDATE (owner)" now also sends commits that were saved
+  locally but never pushed. The old script only checked for *uncommitted* edits,
+  so an already-committed-but-unpushed commit made it say "nothing to send" and
+  exit without pushing — leaving GitHub (and every other machine's UPDATE)
+  behind. Now it fetches, detects unpushed commits as well as uncommitted edits,
+  only prompts/commits when there are new edits, and always pushes when anything
+  is pending. Mac launcher only.
+
 - fix(update-styles): "Update styles" now mirrors the latest P-drive backup
   instead of only overlaying it. It still adds new/renamed styles, but now also
   removes local style folders absent from that backup, so a machine ends up an
