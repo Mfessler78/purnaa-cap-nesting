@@ -28,3 +28,7 @@ data/backup.json
 # Owner-only publish button — stays on the owner's computer, never shipped to
 # other machines (they only ever UPDATE, they don't publish).
 PUBLISH UPDATE (owner).command
+
+# Local Claude Code state and agent worktrees — machine-local, never published.
+# (A worktree dir was once committed here as a gitlink and corrupted publishes.)
+.claude/
