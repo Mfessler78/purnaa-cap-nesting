@@ -9,7 +9,7 @@
 > Companion docs: `CLAUDE.md` (how to work), `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-06-19. Update the date when you change this file.
+> Last updated: 2026-06-29. Update the date when you change this file.
 
 ---
 
@@ -46,7 +46,9 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
         │
         ▼
   VERIFY GATE (src/lib/verifyArtwork.js) — blocks export on missing/mismatched
-        │                                   pieces or size mismatch
+        │                                   pieces or size mismatch; also emits
+        │                                   warn-only color-profile & flatten
+        │                                   advisories (read-only, never blocks)
         ▼
   EXPORT
    • Direct vector (default, RasterLink-proven)  ← preferred path
@@ -152,7 +154,7 @@ Use this to see the blast radius before editing.
 | Module | Owns | Depends on | Depended on by |
 |--------|------|------------|----------------|
 | `src/lib/engine.js` | The fill pipeline (place, rotate, clip, stamp, scale, multi-sheet) | `pdf-lib`, `pdfGeometry`, `pdfPaths` | `RunScreen.jsx` |
-| `src/lib/verifyArtwork.js` | Pre-export checks (presence, size match) | `pdfGeometry` | `RunScreen.jsx`, `engine.js` |
+| `src/lib/verifyArtwork.js` | Pre-export checks: region presence/size (blocking) + color-profile & flatten advisories (warn-only) | `pdf-lib`, `pdfRender`/`scanRegions` (lazy, DOM-only) | `RunScreen.jsx`, `engine.js` |
 | `src/lib/pdfGeometry.js` | Box/transform/rotation math | — (leaf) | engine, verify, editors |
 | `src/lib/pdfPaths.js` | Vector path extraction from PDFs | `pdfjs-dist` | engine, detectRegions |
 | `src/lib/pdfRender.js` | Rasterize PDF pages for display | `pdfjs-dist` | `PdfViewer.jsx` |

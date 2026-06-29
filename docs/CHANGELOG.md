@@ -3,6 +3,16 @@
 One line per change, newest first. See `ARCHITECTURE.md` for structure and
 `CLAUDE.md` for how changes are made.
 
+- feat(verify): add detect-only color-profile & flatten advisories to the verify
+  gate. New `checkArtworkColor` in `verifyArtwork.js` reads PDF structure only
+  (pdf-lib) and emits operator-facing WARNINGS — never blocks, never edits
+  artwork: (A) no/unsuitable embedded color profile → colors may shift in
+  RasterLink (suggests assigning sRGB); (B) >1 page image → unflattened, slow to
+  RIP (suggests Flatten Image). `RunScreen` runs it alongside the region check
+  and merges its strings into `warnings`. `checkArtworkRegions` now lazy-imports
+  its DOM-only deps (pdfRender/scanRegions) so the module is Node-testable.
+  Fixtures + focused test added. No new dependency; export path untouched.
+
 - fix(publish): "PUBLISH UPDATE (owner)" now also sends commits that were saved
   locally but never pushed. The old script only checked for *uncommitted* edits,
   so an already-committed-but-unpushed commit made it say "nothing to send" and

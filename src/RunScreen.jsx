@@ -3,7 +3,7 @@ import PdfViewer from './PdfViewer.jsx'
 import { listStyles, getStyle, getStylePdfFile, listFabrics, exportStatus, processExport } from './lib/api'
 import { loadPdfPage } from './lib/pdfRender'
 import { fillLayout } from './lib/engine'
-import { checkArtworkRegions } from './lib/verifyArtwork'
+import { checkArtworkRegions, checkArtworkColor } from './lib/verifyArtwork'
 
 const MODE_LABELS = { die: 'Die cut', laser: 'Laser' }
 
@@ -167,8 +167,9 @@ export default function RunScreen() {
       }
       setProgress('Checking artwork and placing pieces… (large artwork can take a moment)')
       await tick()
-      const [artChecks, res] = await Promise.all([
+      const [artChecks, colorCheck, res] = await Promise.all([
         checkArtworkRegions(artwork.bytes, variant.pieces),
+        checkArtworkColor(artwork.bytes),
         fillLayout({ ...common, guides: true }),
       ])
       // Export composition: same placements on a blank page — no guide content.
@@ -180,7 +181,7 @@ export default function RunScreen() {
 
       const passed = []
       const blocking = [...(res.errors || [])]
-      const warnings = [...(res.warnings || [])]
+      const warnings = [...(res.warnings || []), ...colorCheck.warnings]
 
       const emptyRegions = artChecks.filter((c) => !c.hasArtwork)
       if (emptyRegions.length) {
