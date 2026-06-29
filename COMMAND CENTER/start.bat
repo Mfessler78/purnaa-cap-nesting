@@ -8,7 +8,16 @@ REM  Builds the latest code and runs the office server on port 4173, then
 REM  opens the browser. Keep the window open while using the app.
 REM ==========================================================================
 
+REM Run the app folder THIS launcher belongs to (COMMAND CENTER lives inside the
+REM app). End users get the clone at %USERPROFILE%\purnaa-cap-nesting; the owner's
+REM master copy can live elsewhere. Deriving the app folder from the launcher's
+REM own location (parent of COMMAND CENTER) runs whichever copy you double-clicked
+REM from, so the master machine starts the copy that holds the styles. Fall back
+REM to the standard install path when launched from outside an app folder (e.g. a
+REM first-time user running COMMAND CENTER from the Desktop before install).
 set "APP_DIR=%USERPROFILE%\purnaa-cap-nesting"
+for %%I in ("%~dp0..") do set "CANDIDATE=%%~fI"
+if exist "%CANDIDATE%\package.json" if exist "%CANDIDATE%\server\serve.js" set "APP_DIR=%CANDIDATE%"
 set "URL=http://localhost:4173"
 
 if not exist "%APP_DIR%\.git" (

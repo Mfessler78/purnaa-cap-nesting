@@ -224,6 +224,13 @@ should be its own small, confirmed change. **Do not bulk-delete.**
 - **`style.json` filename drift inside styles:** e.g. `template_v1.pdf` /
   `prenest_laser.pdf` in the 5-panel folder vs. plain `template.pdf` / `prenest.pdf`
   elsewhere. Confirm the engine's expected names and standardize.
+- **Launchers other than START still hardcode `~/purnaa-cap-nesting`.** START now
+  runs the app folder its launcher lives in (fixes the master Mac opening an empty
+  clone). `install`, `update`, and "Retrieve New Styles from P Drive" (`.command`
+  /`.bat`/`.ps1`) still point at `$HOME/purnaa-cap-nesting`. Correct for end users,
+  but on the owner's master Mac they act on the installed clone, not the working
+  copy. Apply the same location-aware-with-fallback logic to them as a separate
+  small change (confirm first — these run install/update side effects).
 - ~~**No CHANGELOG.**~~ Resolved: `docs/CHANGELOG.md` exists (one line per change).
 - **Sparse tests.** Only `engine.test.js`, `pdfPaths.test.js`, `schema.test.js` exist.
   As you optimize a module, add a focused regression test for the behavior you're

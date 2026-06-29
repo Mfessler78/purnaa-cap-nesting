@@ -6,7 +6,20 @@
 # ===========================================================================
 set -u
 
-APP_DIR="$HOME/purnaa-cap-nesting"
+# Run the app folder THIS launcher belongs to (COMMAND CENTER lives inside the
+# app). The owner's master copy is ~/Documents/purnaa-cap-nesting; end users get
+# the clone at ~/purnaa-cap-nesting. Deriving the app folder from the launcher's
+# own location runs whichever copy you double-clicked from — so the master Mac
+# starts the copy that actually holds the styles, not a stray empty clone.
+# Fall back to ~/purnaa-cap-nesting only when launched from outside an app folder
+# (e.g. a first-time user running COMMAND CENTER from the Desktop before install).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CANDIDATE="$(dirname "$SCRIPT_DIR")"
+if [ -f "$CANDIDATE/package.json" ] && [ -d "$CANDIDATE/server" ]; then
+  APP_DIR="$CANDIDATE"
+else
+  APP_DIR="$HOME/purnaa-cap-nesting"
+fi
 NODE_DIR="$HOME/.purnaa-tools/node"
 URL="http://localhost:4173"
 

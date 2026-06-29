@@ -2,6 +2,11 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(start): START now runs the app folder the launcher lives in (parent of
+  `COMMAND CENTER/`), falling back to `~/purnaa-cap-nesting` only when launched
+  from outside an app folder. Fixes the master Mac starting an empty
+  `~/purnaa-cap-nesting` clone (no styles) instead of the working copy that holds
+  the styles. End-user/installed behavior unchanged. start.command + start.bat.
 - chore(scripts): consolidate every end-user launcher into a top-level
   `COMMAND CENTER/` folder (install / start / update / "Retrieve New Styles from
   P Drive" + SETUP-CARD). Deleted the superseded root duplicates (setup/START/
