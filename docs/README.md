@@ -14,7 +14,8 @@ All documentation for the project lives in this folder. Start here.
 | **Read the functional specification** | [`SPEC.md`](SPEC.md) |
 | **See the cleanup/audit pass record** | [`CLAUDE_CODE_CLEANUP_AUDIT.md`](CLAUDE_CODE_CLEANUP_AUDIT.md) (the plan) and [`CLEANUP_AUDIT_FINDINGS.md`](CLEANUP_AUDIT_FINDINGS.md) (the Phase 1 report) |
 
-The project's operating rules for the coding assistant stay at the repo root in `../CLAUDE.md`.
+The project's operating rules for the coding assistant are kept on the owner's master
+copy only (not tracked in this repo).
 
 ## The one current version of each guide
 There is exactly **one** of each, on purpose:

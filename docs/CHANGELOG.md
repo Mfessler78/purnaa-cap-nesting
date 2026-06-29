@@ -1,8 +1,14 @@
 # Changelog
 
-One line per change, newest first. See `ARCHITECTURE.md` for structure and
-`CLAUDE.md` for how changes are made.
+One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- chore(scripts): consolidate every end-user launcher into a top-level
+  `COMMAND CENTER/` folder (install / start / update / "Retrieve New Styles from
+  P Drive" + SETUP-CARD). Deleted the superseded root duplicates (setup/START/
+  UPDATE *.command/.bat/.ps1, backup.bat, Windows P-drive backup). The styles
+  launcher was rewired to the new install model (~/purnaa-cap-nesting +
+  ~/.purnaa-tools/node). Untracked CLAUDE.md and the Mac P-drive backup
+  (owner-master-only); both stay on disk, gitignored. Docs updated to match.
 - feat(verify): add detect-only color-profile & flatten advisories to the verify
   gate. New `checkArtworkColor` in `verifyArtwork.js` reads PDF structure only
   (pdf-lib) and emits operator-facing WARNINGS — never blocks, never edits

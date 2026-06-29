@@ -1,6 +1,6 @@
 # SPEC.md — Purnaa Cap Nesting
 
-A browser-based tool (run locally, any computer) that automates filling pre-nested print layouts with customer artwork for cap manufacturing. Favor reliability and clear human-verification over features. See CLAUDE.md for build order and guardrails — the build order there overrides any implied order here.
+A browser-based tool (run locally, any computer) that automates filling pre-nested print layouts with customer artwork for cap manufacturing. Favor reliability and clear human-verification over features. See `ARCHITECTURE.md` (§Invariants) for the correctness guardrails that override any implied behavior here.
 
 ## Purpose
 

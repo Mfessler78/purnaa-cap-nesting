@@ -1,5 +1,5 @@
-# Update styles from the latest P-drive backup (Windows).
-# Called by "UPDATE STYLES FOR WINDOWS.bat". Updates DATA only, not program code.
+# Retrieve new styles from the latest P-drive backup (Windows).
+# Called by "Retrieve New Styles from P Drive.bat". Updates DATA only, not program code.
 $ErrorActionPreference = 'Stop'
 function Show-Msg($text, $icon) {
   (New-Object -ComObject Wscript.Shell).Popup($text, 0, 'Purnaa Cap Nesting - Update styles', $icon) | Out-Null

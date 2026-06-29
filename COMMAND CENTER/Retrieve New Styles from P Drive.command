@@ -1,22 +1,30 @@
 #!/bin/bash
 # ============================================================================
-#  Purnaa Cap Nesting - UPDATE STYLES from the P drive (Mac)
+#  Purnaa Cap Nesting - RETRIEVE NEW STYLES from the P drive (Mac)
 #
 #  Double-click to copy the NEWEST style backup from the P drive onto this
 #  computer (the mapped styles + the fabric list). Use this on a freshly set-up
 #  machine, or any machine that should match the latest styles someone mapped.
 #
 #  This updates DATA only. It does NOT change the program code - use
-#  "UPDATE FOR MAC" for that. You must be connected to the P drive first.
+#  "update.command" for that. You must be connected to the P drive first.
 # ============================================================================
-cd "$(dirname "$0")" || exit 1
+set -u
+APP_DIR="$HOME/purnaa-cap-nesting"
+NODE_DIR="$HOME/.purnaa-tools/node"
+export PATH="$NODE_DIR/bin:$PATH"
 
 popup() { osascript -e "display dialog \"$1\" buttons {\"OK\"} with icon $2" >/dev/null 2>&1; }
 
+if [ ! -d "$APP_DIR/.git" ]; then
+  popup "The app is not installed yet on this computer. Double-click install.command first, then try again." caution
+  exit 1
+fi
+cd "$APP_DIR" || exit 1
+
 NODE="node"
-[ -x "./node/bin/node" ] && NODE="./node/bin/node"
 if ! command -v "$NODE" >/dev/null 2>&1; then
-  popup "Node is not set up yet on this computer. Double-click setup.command first, then try again." caution
+  popup "Node is not set up yet on this computer. Double-click install.command first, then try again." caution
   exit 1
 fi
 

@@ -5,19 +5,25 @@ This is the plain-language guide for running the app on the office computer (the
 it all stays on your local network. The app runs on **one** computer (the host);
 everyone else just opens it in a web browser.
 
+> **Every launcher lives in the `COMMAND CENTER` folder.** That one folder holds
+> `install`, `start`, `update`, and `Retrieve New Styles from P Drive` (each as a
+> `.bat` for Windows and a `.command` for Mac). The shortest version of this guide
+> is `COMMAND CENTER/SETUP-CARD.md`.
+
 ---
 
 ## Every day: start the app
 
 1. Go to the host computer (the one that runs the app).
-2. Double-click the **`START FOR WINDOWS.bat`** icon.
+2. Open the **`COMMAND CENTER`** folder and double-click **`start.bat`**
+   (Windows) or **`start.command`** (Mac).
 3. A web browser opens to the app. A small **"Purnaa Cap Nesting"** item appears
    **minimized in the taskbar** — leave it there and ignore it. That's the app
    running quietly in the background.
 
 That's it. The app is now running and ready on every office computer.
 
-> **The one fix for almost everything: double-click `START FOR WINDOWS.bat` again.** It safely
+> **The one fix for almost everything: double-click `start` again.** It safely
 > stops whatever was running and starts fresh. You can't break anything by
 > double-clicking it twice — there's never two copies fighting each other.
 
@@ -92,22 +98,21 @@ To keep that address from changing:
 
 ## If something goes wrong
 
-The app is designed so the fix is almost always the same: **double-click
-`START FOR WINDOWS.bat` again.** Beyond that:
+The app is designed so the fix is almost always the same: **double-click `start`
+again** (in the `COMMAND CENTER` folder). Beyond that:
 
 - **A message box pops up saying the app stopped:** close it and double-click
-  `START FOR WINDOWS.bat` again. (The app stays minimized and silent while it's healthy — if a
+  `start` again. (The app stays minimized and silent while it's healthy — if a
   box ever appears, it's telling you exactly what to do.)
-- **A box says "First-time setup is needed":** this computer hasn't been set up yet.
-  Close the box and double-click **`setup.bat`** (Windows) or **`setup.command`**
-  (Mac) — see "One-time setup" below. When it finishes, double-click the start icon
-  again.
+- **A box says the app isn't installed yet:** this computer hasn't been set up yet.
+  Close the box and double-click **`install.bat`** (Windows) or **`install.command`**
+  (Mac) — see "One-time setup" below. When it finishes, double-click `start` again.
 - **Other computers can't open the address:** make sure (a) the host is on and
-  `START FOR WINDOWS.bat` has been run, (b) the other computer is on the **same office network**,
+  `start` has been run, (b) the other computer is on the **same office network**,
   (c) you used the correct `http://<host-ip>:4173` address, and (d) Windows Firewall
   isn't blocking it — the first time you run it, Windows may show an "Allow access"
   box; click **Allow** for **Private networks**.
-- **Still stuck:** restart the host computer, then double-click `START FOR WINDOWS.bat`.
+- **Still stuck:** restart the host computer, then double-click `start`.
 
 ---
 
@@ -167,35 +172,37 @@ folder, replacing the empty ones. Start the app — every style and fabric is ba
 
 ---
 
-## One-time setup (any computer) — just run setup, once
+## One-time setup (any computer) — just run install, once
 
-Setup is now **one double-click**, and it works the same on Windows or Mac. On a new
-computer:
+Setup is **one double-click**, and it works the same on Windows or Mac. On a new
+computer, open the **`COMMAND CENTER`** folder and:
 
-1. Put the whole program folder on the computer's **local hard drive** (not a network
-   or cloud folder).
-2. **Run setup once:**
-   - **Windows:** double-click **`setup.bat`**.
-   - **Mac:** double-click **`setup.command`**.
+1. **Run install once:**
+   - **Windows:** double-click **`install.bat`**.
+   - **Mac:** double-click **`install.command`**.
 
-   It downloads a **private copy of Node into the folder** (`node/`) and builds the
-   app. It needs the **internet once**, takes a few minutes, and installs **nothing**
-   system-wide — no admin rights needed. When it says "Setup complete," you're done.
-3. Double-click **`START FOR WINDOWS.bat`** (Windows) or **`START FOR MAC.command`** (Mac) to run it. If
-   you ever double-click start *before* setup, it pops up a message telling you to run
-   setup first — so it's hard to get wrong.
+   It installs Node **just for this user** (no admin rights, no password), downloads
+   the app from GitHub into your home folder (`~/purnaa-cap-nesting`), and installs
+   the app's components. It needs the **internet once** and takes a few minutes. It is
+   **safe to run more than once.** When it says "INSTALL COMPLETE," you're done.
+2. Double-click **`start.bat`** (Windows) or **`start.command`** (Mac) to run it. If
+   you ever double-click start *before* install, it pops up a message telling you to
+   run install first — so it's hard to get wrong.
 
-> **If you skipped setup**, the start icon will just prompt you to run it. You can't
+> **If you skipped install**, the start icon will just prompt you to run it. You can't
 > end up half-installed.
 
-> **Sharing to another computer:** copy the program folder over, then run **setup
-> again on that computer**. The `node/` folder is specific to each computer's
-> operating system (a Mac's Node won't run on Windows and vice-versa), so each machine
-> downloads the right one. Everything else travels fine.
+> **Updating the program later:** double-click **`update`** in `COMMAND CENTER` (only
+> when Max says to). It pulls the newest code from GitHub and rebuilds. Starting the
+> app never updates it on its own.
+
+> **Setting up another computer:** copy the `COMMAND CENTER` folder over (or download
+> the repo), then run **install** on that computer. Each machine downloads the Node it
+> needs for its own operating system and its own copy of the app from GitHub.
 
 **Optional, recommended on the host:**
-- Set the host to a **fixed IP** and add `START FOR WINDOWS.bat` to Windows startup so it launches
-  on boot (`Win + R` → `shell:startup` → paste a shortcut to `START FOR WINDOWS.bat`).
-- Keep a **cold copy of the whole program folder** on the P drive / shared drive, so
-  the host can be rebuilt on a new machine if it ever dies (then run setup on the new
-  machine and restore your styles from a backup).
+- Set the host to a **fixed IP** and add `start.bat` to Windows startup so it launches
+  on boot (`Win + R` → `shell:startup` → paste a shortcut to `start.bat`).
+- Keep the styles backed up to the P drive (bottom bar → "Back up now"), so a new
+  machine can be set up with **install** and then catch up with **Retrieve New Styles
+  from P Drive**.

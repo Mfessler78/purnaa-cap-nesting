@@ -6,7 +6,7 @@
 > change moves/adds/removes a module or alters the flow or an invariant, update this file
 > in the same change.
 >
-> Companion docs: `CLAUDE.md` (how to work), `SPEC.md` (full functional spec),
+> Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
 > Last updated: 2026-06-29. Update the date when you change this file.
@@ -140,9 +140,15 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │
 ├── AI files of PRENEST and TEMPLATES/   # source .ai (Illustrator) originals, by style
 │
-├── CLAUDE.md                # operating rules (root, intentionally)
+├── COMMAND CENTER/          # ALL end-user launchers (install/start/update/retrieve styles)
+│   ├── install.command   install.bat
+│   ├── start.command     start.bat
+│   ├── update.command    update.bat            # updates the PROGRAM from GitHub
+│   ├── Retrieve New Styles from P Drive.command / .bat   (+ pdrive-update-styles.ps1)
+│   └── SETUP-CARD.md        #   the plain-language guide
 ├── package.json  vite.config.js  index.html
-└── (start/update/backup launcher scripts: *.command / *.bat / *.ps1)
+└── (owner-only, untracked: PUBLISH UPDATE (owner).command,
+     BACKUP TO P DRIVE FOR MAC.command — master Mac only, never shipped)
 ```
 
 ---
@@ -172,7 +178,7 @@ widely depended on, so its behavior must not change. `engine.js` is the highest-
 
 ## 5. Invariants (correctness — do not break without spec-level sign-off)
 
-These mirror `CLAUDE.md §2` and are the reason the output is correct. Full rationale in
+These are the reason the output is correct. Full rationale in
 `SPEC.md` / `CLAUDE_CODE_LASER_VS_DIECUT.md`.
 
 1. **No scale-to-fit, ever.** Artwork and template piece must be identical physical size.
@@ -208,7 +214,7 @@ should be its own small, confirmed change. **Do not bulk-delete.**
   removing from version control. Same question for `node_modules/` and `dist/`.
 - **Duplicate update plans:** `CLAUDE_CODE_UPDATE_PLAN.md` exists at repo root *and* in
   `docs/archive/`. Root copy should move to `docs/` or `docs/archive/`. The root is for
-  `CLAUDE.md` and config only.
+  config and the `COMMAND CENTER/` launcher folder only.
 - **Possible duplicate prenest source:** `AI files of PRENEST and TEMPLATES/60203-DADHAT/`
   contains both `DADHAT(OSFM)_PRENEST.ai` and `pur60203-DADHAT(OSFM)_PRENEST.ai`. Confirm
   which is canonical; remove the stale one.

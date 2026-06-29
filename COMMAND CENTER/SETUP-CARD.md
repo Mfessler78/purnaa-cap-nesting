@@ -1,8 +1,12 @@
 # Purnaa Cap Nesting — Setup Card
 
-This is the only page you need. There are three buttons:
-**INSTALL** (once), **START** (every day you use the app), and **UPDATE**
-(only when Max tells you to).
+Everything you need is in this one folder, **COMMAND CENTER**. There are four
+buttons:
+
+- **INSTALL** — once, the first time on a computer.
+- **START** — every day you use the app.
+- **UPDATE** — only when Max tells you to (updates the program).
+- **Retrieve New Styles from P Drive** — when there are new styles to pull in.
 
 Pick your computer below.
 
@@ -11,7 +15,8 @@ Pick your computer below.
 ## 🪟 On a Windows computer (Santosh)
 
 Your files are named with **.bat**:
-`install.bat`, `start.bat`, `update.bat`
+`install.bat`, `start.bat`, `update.bat`,
+`Retrieve New Styles from P Drive.bat`
 
 ### First time only — INSTALL
 1. Double-click **install.bat**.
@@ -34,12 +39,19 @@ The app lives at: **http://localhost:4173**
 2. Double-click **update.bat**.
 3. When it says **UPDATE COMPLETE**, start the app as usual.
 
+### When there are new styles — RETRIEVE NEW STYLES
+1. Make sure you are **connected to the office network / P drive**.
+2. Double-click **Retrieve New Styles from P Drive.bat**.
+3. It pulls the newest styles and fabric list onto this computer.
+   This changes styles only, never the program.
+
 ---
 
-## 🍎 On a Mac (Ryan)
+## 🍎 On a Mac
 
 Your files are named with **.command**:
-`install.command`, `start.command`, `update.command`
+`install.command`, `start.command`, `update.command`,
+`Retrieve New Styles from P Drive.command`
 
 ### First time only — INSTALL
 1. Double-click **install.command**.
@@ -62,6 +74,12 @@ The app lives at: **http://localhost:4173**
 1. Make sure the app is **closed** (black window closed).
 2. Double-click **update.command**.
 3. When it says **UPDATE COMPLETE**, start the app as usual.
+
+### When there are new styles — RETRIEVE NEW STYLES
+1. Make sure you are **connected to the office network / P drive**.
+2. Double-click **Retrieve New Styles from P Drive.command**.
+3. It pulls the newest styles and fabric list onto this computer.
+   This changes styles only, never the program.
 
 ---
 
