@@ -2,6 +2,19 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(install,update): install/update now act on the app folder the launcher
+  lives in (parent of `COMMAND CENTER/`), falling back to `~/purnaa-cap-nesting`
+  only when launched from outside one. Stops the master Mac cloning/operating on
+  a stray second copy; makes a moved folder self-consistent. install + update
+  `.command`/`.bat`.
+- fix(retrieve): "Retrieve New Styles from P Drive" reads `data/backup.json` from
+  the launcher's own app copy (same derivation as start), not a hardcoded path,
+  so it no longer reports "No backup folder is set yet" when the running app
+  lives elsewhere. `.command`/`.bat` (`.ps1` inherits via the `.bat` pushd).
+- perf(start): START stamps `dist/` with the git rev it was built from
+  (`dist/.built-rev`) and skips `npm run build` when HEAD still matches, so the
+  app opens instantly instead of rebuilding every launch. update moves HEAD →
+  next start rebuilds; unknown state still builds. start.command + start.bat.
 - fix(start): START now runs the app folder the launcher lives in (parent of
   `COMMAND CENTER/`), falling back to `~/purnaa-cap-nesting` only when launched
   from outside an app folder. Fixes the master Mac starting an empty
