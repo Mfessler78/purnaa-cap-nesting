@@ -63,9 +63,21 @@ echo ""
 
 cd "$APP_DIR" || fail
 
-# Build first so the server starts instantly afterwards.
-echo "Preparing the app (rebuilding)..."
-npm run build || fail
+# Rebuild only when the code actually changed. We stamp dist/ with the git
+# revision it was built from (dist/.built-rev). If HEAD still matches, the
+# existing build is current and we skip the slow rebuild for an instant start.
+# update.command moves HEAD when it pulls new code, so the next start rebuilds
+# automatically. If anything is unknown (no build yet, no stamp, git
+# unavailable) we build to be safe.
+HEAD_REV="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+BUILT_REV="$(cat dist/.built-rev 2>/dev/null || echo none)"
+if [ -f dist/index.html ] && [ "$HEAD_REV" != "unknown" ] && [ "$HEAD_REV" = "$BUILT_REV" ]; then
+  echo "The app is already up to date - starting instantly."
+else
+  echo "Preparing the app (rebuilding)..."
+  npm run build || fail
+  printf '%s' "$HEAD_REV" > dist/.built-rev
+fi
 
 # Open the browser a few seconds after the server starts.
 echo "Opening your browser at $URL ..."

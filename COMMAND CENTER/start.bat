@@ -40,10 +40,24 @@ echo   *** KEEP THIS WINDOW OPEN while you use the app.    ***
 echo   *** Close it when you are finished to stop the app. ***
 echo.
 
-REM --- Build first so the server starts instantly afterwards ---
+REM --- Rebuild only when the code actually changed (git-stamp check) ---
+REM We record the git revision dist\ was built from in dist\.built-rev. If HEAD
+REM still matches, the build is current and we skip the slow rebuild for an
+REM instant start. update.bat moves HEAD when it pulls new code, so the next
+REM start rebuilds. Anything unknown (no build, no stamp, git missing) -> build.
+set "HEAD_REV="
+for /f "delims=" %%R in ('git rev-parse HEAD 2^>nul') do set "HEAD_REV=%%R"
+set "BUILT_REV="
+if exist "dist\.built-rev" set /p BUILT_REV=<"dist\.built-rev"
+if exist "dist\index.html" if defined HEAD_REV if "%HEAD_REV%"=="%BUILT_REV%" goto :skipbuild
 echo Preparing the app (rebuilding) ...
 call npm run build
 if errorlevel 1 ( popd & goto :fail )
+>"dist\.built-rev" echo %HEAD_REV%
+goto :builddone
+:skipbuild
+echo The app is already up to date - starting instantly.
+:builddone
 
 REM --- Open the browser a few seconds after the server starts ---
 echo Opening your browser at %URL% ...
