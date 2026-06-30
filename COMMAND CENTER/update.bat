@@ -9,7 +9,13 @@ REM  package-lock.json actually changed. This is a deliberate, separate step;
 REM  starting the app never updates on its own.
 REM ==========================================================================
 
+REM Update the app folder THIS launcher belongs to (COMMAND CENTER lives inside
+REM the app), the same way start.bat does, so the owner's master copy updates
+REM itself rather than a stray clone. Fall back to the standard path only when
+REM launched from outside an app folder.
 set "APP_DIR=%USERPROFILE%\purnaa-cap-nesting"
+for %%I in ("%~dp0..") do set "CANDIDATE=%%~fI"
+if exist "%CANDIDATE%\package.json" if exist "%CANDIDATE%\server\serve.js" set "APP_DIR=%CANDIDATE%"
 
 if not exist "%APP_DIR%\.git" (
   echo [PROBLEM] The app is not installed yet.

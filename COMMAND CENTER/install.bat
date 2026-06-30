@@ -8,7 +8,14 @@ REM  Safe to run more than once. Installs Git + Node if missing, then gets
 REM  the app and its components. If anything fails it points to Max, not Ryan.
 REM ==========================================================================
 
+REM Install/update the app folder THIS launcher belongs to (COMMAND CENTER lives
+REM inside the app), the same way start.bat does. When run from inside an
+REM existing copy it updates that copy in place instead of cloning a stray second
+REM copy. Only a true first-time run from outside any app folder falls back to
+REM cloning the standard path.
 set "APP_DIR=%USERPROFILE%\purnaa-cap-nesting"
+for %%I in ("%~dp0..") do set "CANDIDATE=%%~fI"
+if exist "%CANDIDATE%\package.json" if exist "%CANDIDATE%\server\serve.js" set "APP_DIR=%CANDIDATE%"
 set "REPO_URL=https://github.com/Mfessler78/purnaa-cap-nesting.git"
 
 echo.

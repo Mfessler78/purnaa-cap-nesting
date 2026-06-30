@@ -7,7 +7,19 @@
 # ===========================================================================
 set -u
 
-APP_DIR="$HOME/purnaa-cap-nesting"
+# Install/update the app folder THIS launcher belongs to (COMMAND CENTER lives
+# inside the app), the same way start.command does. When run from inside an
+# existing copy (e.g. the owner's master at ~/Documents/purnaa-cap-nesting) it
+# updates that copy in place instead of cloning a stray second copy at
+# ~/purnaa-cap-nesting. Only a true first-time run from outside any app folder
+# (e.g. a COMMAND CENTER on the Desktop) falls back to cloning the standard path.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CANDIDATE="$(dirname "$SCRIPT_DIR")"
+if [ -f "$CANDIDATE/package.json" ] && [ -d "$CANDIDATE/server" ]; then
+  APP_DIR="$CANDIDATE"
+else
+  APP_DIR="$HOME/purnaa-cap-nesting"
+fi
 REPO_URL="https://github.com/Mfessler78/purnaa-cap-nesting.git"
 NODE_VERSION="22.20.0"
 TOOLS_DIR="$HOME/.purnaa-tools"
