@@ -10,7 +10,20 @@
 #  "update.command" for that. You must be connected to the P drive first.
 # ============================================================================
 set -u
-APP_DIR="$HOME/purnaa-cap-nesting"
+
+# Operate on the app folder THIS launcher belongs to (COMMAND CENTER lives
+# inside the app), the same way start.command does. This matters because we read
+# the backup folder from data/backup.json: the running app writes it next to its
+# own copy, so retrieving must read the SAME copy or it sees "not set" on a stray
+# clone. Fall back to ~/purnaa-cap-nesting only when launched from outside an app
+# folder (e.g. first-time setup run from the Desktop).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CANDIDATE="$(dirname "$SCRIPT_DIR")"
+if [ -f "$CANDIDATE/package.json" ] && [ -d "$CANDIDATE/server" ]; then
+  APP_DIR="$CANDIDATE"
+else
+  APP_DIR="$HOME/purnaa-cap-nesting"
+fi
 NODE_DIR="$HOME/.purnaa-tools/node"
 export PATH="$NODE_DIR/bin:$PATH"
 
