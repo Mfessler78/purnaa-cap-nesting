@@ -2,6 +2,17 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(sync,stage2): one-time migration/seed. `pdriveSync.js` gains the
+  append-only event layer — `writeEvent`/`readEvents` (unique-name, atomic,
+  torn-file-tolerant), `replay` (fold add/update/delete by `at`, tie-break by
+  filename → the desired set), and `seedFromLocal` (copy local styles into
+  `current/`, one `add` event each, dated `backups/` snapshot). Idempotent: a
+  re-run copies only changed styles, appends an event only when replay doesn't
+  already match, snapshots only on change; never deletes or invents a style.
+  Owner-run CLI `scripts/pdrive-migrate.js "<sync-root>"`. Verified against the
+  master's real 11 styles: seed→11 adds/replay=11; re-run→0 added/11 unchanged.
+  Still not wired into retrieve/creation. Tests extended in `tests/pdriveSync.test.js`.
+
 - feat(sync,stage1): add `src/lib/pdriveSync.js` — shared Node foundations for the
   append-only P-drive style sync (replacing merge-all-snapshots). One
   implementation for both Mac and Windows launchers (no bash/PowerShell drift):

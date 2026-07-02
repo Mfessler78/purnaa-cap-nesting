@@ -102,3 +102,167 @@ export function ensureScaffold(root) {
   for (const p of Object.values(paths)) fs.mkdirSync(p, { recursive: true })
   return paths
 }
+
+// ---- Events (append-only) -------------------------------------------------
+// Each add/update/delete is a tiny self-describing JSON file. No computer ever
+// overwrites a shared file — every event has a unique name — so concurrent edits
+// from different machines can't clobber or truncate each other. Current state is
+// COMPUTED by replaying the events (see replay()).
+
+const safeName = (s) => String(s).replace(/[^A-Za-z0-9._-]+/g, '_') || 'x'
+
+// Colon/dash/dot-free but still chronologically sortable as text, and legal as a
+// Windows filename ('.' and ':' from an ISO string are stripped):
+// "2026-07-02T09:10:00.123Z" -> "20260702T091000123Z".
+export function eventStamp(iso) {
+  return String(iso).replace(/[-:.]/g, '')
+}
+
+// Filename encodes enough to sort and stay unique per event:
+// <stamp>__<by>__<op>__<style>__<rand>.json. The random suffix guarantees two
+// events that share stamp/by/op/style still get distinct filenames (append-only).
+export function eventFileName(ev) {
+  const rand = crypto.randomBytes(3).toString('hex')
+  return `${eventStamp(ev.at)}__${safeName(ev.by)}__${ev.op}__${safeName(ev.style)}__${rand}.json`
+}
+
+// Publish an event atomically: write a hidden temp file, then rename it into
+// place. Unique name + atomic rename means a reader never sees a half-written
+// event and no machine overwrites another's.
+export function writeEvent(eventsDir, ev) {
+  fs.mkdirSync(eventsDir, { recursive: true })
+  const name = eventFileName(ev)
+  const tmp = path.join(eventsDir, `.${name}.tmp`)
+  fs.writeFileSync(tmp, JSON.stringify(ev))
+  fs.renameSync(tmp, path.join(eventsDir, name))
+  return name
+}
+
+// Read every event file. A torn/partial event (rare; a crash mid-write) is
+// skipped rather than crashing the whole sync. Attaches `_file` for tie-break
+// sorting in replay().
+export function readEvents(eventsDir) {
+  let names
+  try {
+    names = fs.readdirSync(eventsDir)
+  } catch {
+    return []
+  }
+  const out = []
+  for (const name of names) {
+    if (name.startsWith('.') || !name.endsWith('.json')) continue
+    try {
+      const ev = JSON.parse(fs.readFileSync(path.join(eventsDir, name), 'utf8'))
+      if (ev && ev.op && ev.style && ev.at) out.push({ ...ev, _file: name })
+    } catch {
+      // skip an unreadable/partial event
+    }
+  }
+  return out
+}
+
+// Fold events into the desired set (the "newest screenshot" of what should
+// exist). Sort by `at`, tie-break by filename. add/update put the style in with
+// its latest hash; delete removes it. Returns Map<style, {style,hash,at,by}>.
+export function replay(events) {
+  const sorted = [...events].sort((a, b) => {
+    const ta = Date.parse(a.at)
+    const tb = Date.parse(b.at)
+    if (ta !== tb) return ta - tb
+    const fa = a._file || ''
+    const fb = b._file || ''
+    return fa < fb ? -1 : fa > fb ? 1 : 0
+  })
+  const set = new Map()
+  for (const ev of sorted) {
+    if (ev.op === 'delete') set.delete(ev.style)
+    else if (ev.op === 'add' || ev.op === 'update') {
+      set.set(ev.style, { style: ev.style, hash: ev.hash, at: ev.at, by: ev.by })
+    }
+  }
+  return set
+}
+
+// ---- Style-folder helpers -------------------------------------------------
+// A style dir is a subfolder containing a style.json (matches server/styles-api).
+export function listStyleDirs(stylesDir) {
+  let entries
+  try {
+    entries = fs.readdirSync(stylesDir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  return entries
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(stylesDir, e.name, 'style.json')))
+    .map((e) => e.name)
+    .sort()
+}
+
+function dirExists(p) {
+  try {
+    return fs.statSync(p).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+// Replace dst with a fresh copy of src as atomically as a directory allows: copy
+// to a temp dir on the same disk, then swap it in with rename. Avoids leaving a
+// half-copied style folder visible to a reader.
+export function replaceDir(src, dst) {
+  const parent = path.dirname(dst)
+  fs.mkdirSync(parent, { recursive: true })
+  const tmp = path.join(parent, `.tmp-${path.basename(dst)}-${crypto.randomBytes(4).toString('hex')}`)
+  fs.rmSync(tmp, { recursive: true, force: true })
+  fs.cpSync(src, tmp, { recursive: true })
+  fs.rmSync(dst, { recursive: true, force: true })
+  fs.renameSync(tmp, dst)
+}
+
+// Copy the whole current/ set into a dated backups/backup-<stamp>/ folder — the
+// recovery source. Never read as a sync source.
+export function snapshotCurrent(dirs, at = new Date()) {
+  const dest = path.join(dirs.backups, `backup-${eventStamp(at.toISOString())}`)
+  if (dirExists(dirs.current)) fs.cpSync(dirs.current, dest, { recursive: true })
+  else fs.mkdirSync(dest, { recursive: true })
+  return path.basename(dest)
+}
+
+// ---- One-time seed / migration (Stage 2) ----------------------------------
+// Seed a fresh sync root from a machine's local styles/ folder, treating those
+// styles as the initial truth so replay() reproduces exactly today's set.
+// Idempotent: re-running copies only changed styles, appends an event only when
+// the replayed state doesn't already match the local content, and snapshots to
+// backups/ only when something actually changed. Never deletes and never invents
+// a style — it is purely additive from local truth.
+export function seedFromLocal({ stylesDir, root, by, now = () => new Date() }) {
+  const dirs = ensureScaffold(root)
+  const desired = replay(readEvents(dirs.events))
+  const result = { root, added: [], updated: [], unchanged: [], snapshot: null }
+
+  for (const style of listStyleDirs(stylesDir)) {
+    const srcDir = path.join(stylesDir, style)
+    const hash = hashStyleFolder(srcDir)
+    const curDir = path.join(dirs.current, style)
+    const known = desired.get(style)
+
+    if (known && known.hash === hash) {
+      // Already represented in the log at this exact hash → no new event. Make
+      // sure current/ actually holds it (belt-and-suspenders), then skip.
+      if (!dirExists(curDir) || hashStyleFolder(curDir) !== hash) replaceDir(srcDir, curDir)
+      result.unchanged.push(style)
+      continue
+    }
+
+    // New to the log, or content changed since its last event → mirror + event.
+    replaceDir(srcDir, curDir)
+    const op = known ? 'update' : 'add'
+    writeEvent(dirs.events, { op, style, at: now().toISOString(), by, hash })
+    ;(op === 'add' ? result.added : result.updated).push(style)
+  }
+
+  if (result.added.length || result.updated.length) {
+    result.snapshot = snapshotCurrent(dirs, now())
+  }
+  return result
+}
