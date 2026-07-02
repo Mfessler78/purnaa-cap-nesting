@@ -307,13 +307,51 @@ function fmtSize(bytes) {
   return `${Math.max(1, Math.round(bytes / 1e3))} KB`
 }
 
-// Copy a deleted-locally style's bytes into backups/deleted/<style>__<hash> so
-// they're guaranteed present. Deduped by content hash: if the same bytes are
-// already parked there, don't copy again. Returns the backups-relative path.
-export function backupDeletedStyle(dirs, style, srcDir, hash) {
-  const dest = path.join(dirs.backups, 'deleted', `${safeName(style)}__${hash.slice(0, 12)}`)
+// Park a style's bytes under backups/<category>/<style>__<hash> so they're
+// guaranteed recoverable. Deduped by content hash: identical bytes aren't copied
+// twice. Returns the backups-relative path. Categories: "versions" (each saved
+// version) and "deleted" (bytes at the moment of deletion).
+function parkStyleBytes(dirs, category, style, srcDir, hash) {
+  const rel = path.join(category, `${safeName(style)}__${hash.slice(0, 12)}`)
+  const dest = path.join(dirs.backups, rel)
   if (!dirExists(dest)) replaceDir(srcDir, dest)
-  return path.join('deleted', `${safeName(style)}__${hash.slice(0, 12)}`)
+  return rel
+}
+
+export function backupDeletedStyle(dirs, style, srcDir, hash) {
+  return parkStyleBytes(dirs, 'deleted', style, srcDir, hash)
+}
+
+// ---- Creation publish (Stage 4) -------------------------------------------
+// Push a just-saved style to the shared sync root. Order matters for crash
+// safety: update current/ and park a recovery copy FIRST, then append the
+// add|update event LAST — so an interrupted publish can never leave current/
+// changed with no event to explain it (replay simply ignores the orphan and the
+// next successful save re-writes the event). `op` is add for a style the log has
+// never seen, else update. Returns { op, hash }.
+export function publishStyleWrite({ stylesDir, root, style, by, now = () => new Date() }) {
+  const dirs = ensureScaffold(root)
+  const srcDir = path.join(stylesDir, style)
+  const hash = hashStyleFolder(srcDir)
+  const op = replay(readEvents(dirs.events)).has(style) ? 'update' : 'add'
+  replaceDir(srcDir, path.join(dirs.current, style))
+  parkStyleBytes(dirs, 'versions', style, srcDir, hash)
+  writeEvent(dirs.events, { op, style, at: now().toISOString(), by, hash })
+  return { op, hash }
+}
+
+// Publish a deletion. Here the safe order is reversed: park the bytes, append the
+// delete event, THEN remove current/<style>. Event-before-removal means a crash
+// can't leave a style listed-as-current but unpullable; a leftover current/ folder
+// with no matching event is harmless (replay ignores it). Returns { existed }.
+export function publishStyleDelete({ root, style, by, now = () => new Date() }) {
+  const dirs = ensureScaffold(root)
+  const curDir = path.join(dirs.current, style)
+  const existed = dirExists(curDir)
+  if (existed) parkStyleBytes(dirs, 'deleted', style, curDir, hashStyleFolder(curDir))
+  writeEvent(dirs.events, { op: 'delete', style, at: now().toISOString(), by })
+  if (existed) fs.rmSync(curDir, { recursive: true, force: true })
+  return { existed }
 }
 
 export function reconcile({ stylesDir, root, by: _by, now = () => new Date(), log = () => {}, allowEmpty = false }) {

@@ -177,11 +177,29 @@ Use this to see the blast radius before editing.
 | `src/lib/scanRegions.js` | Region scan support | `pdfPaths` | `detectRegions` |
 | `src/lib/dxf.js` | DXF / laser geometry | `pdfGeometry` | engine / laser path |
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
-| `server/styles-api.js` | Persist styles/fabrics, optional gs flatten | `pdf-lib`, Ghostscript (shell) | `api.js` |
+| `src/lib/pdriveSync.js` | P-drive style sync: computer-id, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
+| `server/styles-api.js` | Persist styles/fabrics, optional gs flatten; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, Ghostscript (shell), `pdriveSync` | `api.js` |
 
 **Rule of thumb:** `pdfGeometry.js` is a leaf — safe-ish to optimize internally but
 widely depended on, so its behavior must not change. `engine.js` is the highest-risk file
 (it owns the proven RasterLink output); touch it with the most care and always test export.
+
+**P-drive style sync (data, not program).** Styles are shared between office machines
+through an **append-only event log** on the P drive, not by copying snapshots. The sync
+root (the folder `data/backup.json`'s `path` points at) holds three subfolders: `events/`
+(one tiny JSON file per add/update/delete — never overwritten, so machines can't clobber
+each other), `current/` (the live style folders, the only sync source), and `backups/`
+(dated + per-version + per-deletion recovery copies; **never** read as a sync source). The
+"what should exist" set is *computed* by replaying events (sort by `at`, fold
+add/update/delete). Saving or deleting a style (`server/styles-api.js`) publishes it to
+`current/` and appends the event **last** (crash-safe); the retrieve launchers
+(`scripts/pdrive-retrieve.js`) replay + reconcile the local machine to that set —
+add/update/skip-unchanged/delete-with-recoverable-warning. All one Node implementation
+(`pdriveSync.js`) so Mac and Windows behave identically. Content identity is a `sha256`
+over the sorted `relPath+bytes` of a style folder, so unchanged styles are skipped. This
+is LAN file sync on the existing P-drive channel — **no cloud, no service** (invariant §10
+intact). Local saves always succeed; if the P drive is unreachable the publish is skipped
+and the UI warns the change isn't shared yet.
 
 ---
 

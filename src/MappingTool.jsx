@@ -11,12 +11,21 @@ import {
   saveStyle,
   deleteStyle,
   bytesToBase64,
-  getBackupStatus,
-  runBackup,
 } from './lib/api'
 
 const CUT_MODES = ['laser', 'die']
 const MODE_LABELS = { die: 'Die cut', laser: 'Laser' }
+
+// Describe how a save/delete propagated to the shared P-drive set. Empty when it
+// synced fine; otherwise a plain-language note the operator can act on. The local
+// change already succeeded — this only concerns whether other computers will see it.
+function syncNote(sync) {
+  if (!sync || sync.synced) return ''
+  if (sync.reason === 'no-folder') return ' — change NOT shared to other computers (no Backup folder is set).'
+  if (sync.reason === 'unreachable')
+    return ' — change NOT shared: the P drive is not connected. Reconnect and repeat so other computers get it.'
+  return ` — sharing to the P drive failed: ${sync.reason}`
+}
 
 const ROTATIONS = [0, 90, 180, 270]
 const newId = () => crypto.randomUUID()
@@ -475,10 +484,10 @@ export default function MappingTool() {
     setConfirmDelete(null)
     setMessage({ kind: 'busy', text: `Deleting "${id}"…` })
     try {
-      await deleteStyle(id)
+      const res = await deleteStyle(id)
       await refreshStyles()
       if (loadChoice === id) setLoadChoice('')
-      setMessage({ kind: 'ok', text: `Deleted style "${id}" from disk.` })
+      setMessage({ kind: 'ok', text: `Deleted style "${id}" from disk.` + syncNote(res.sync) })
     } catch (err) {
       setMessage({ kind: 'error', text: `Could not delete "${id}": ${err.message}` })
     }
@@ -514,42 +523,18 @@ export default function MappingTool() {
       setMessage({ kind: 'error', text: problems.join(' ') })
       return
     }
-    // Is this a brand-new style (not already on disk)? Used to offer a backup
-    // right after creating one — the highest-value moment to protect new work.
-    const isNew = !styles.some((s) => s.id === style)
     setMessage({ kind: 'busy', text: 'Saving…' })
     try {
-      await saveStyle({ style, templates, prenests })
+      // Saving also publishes the style to the shared P-drive set (current/ +
+      // an append-only event), so other computers pick it up on their next
+      // Retrieve — no separate "back up now" step. res.sync tells us if that
+      // sharing succeeded; the local save always did.
+      const res = await saveStyle({ style, templates, prenests })
       await refreshStyles()
       const savedText =
         `Saved "${style}" — templates: ${templates.map((t) => `${t.id}(${t.pieces.length})`).join(', ')}; ` +
         `pre-nest: ${modeKeys.map((m) => `${MODE_LABELS[m] || m}(${prenests[m].slots.length})`).join(', ')} → styles/${style}/`
-      setMessage({ kind: 'ok', text: savedText })
-
-      // New style → recommend a backup now (the one deliberate interruption).
-      if (isNew) {
-        let backup = null
-        try {
-          backup = await getBackupStatus()
-        } catch {}
-        if (backup && backup.configured) {
-          if (window.confirm(`New style "${style}" saved.\n\nBack up your styles now? (Recommended — it protects this new work.)`)) {
-            setMessage({ kind: 'busy', text: 'Backing up…' })
-            try {
-              const r = await runBackup()
-              window.dispatchEvent(new Event('capnest-backup'))
-              setMessage({ kind: 'ok', text: `${savedText} — and backed up to ${r.lastBackupName}.` })
-            } catch (err) {
-              setMessage({ kind: 'error', text: `${savedText} — but the backup failed: ${err.message}` })
-            }
-          }
-        } else {
-          setMessage({
-            kind: 'ok',
-            text: `${savedText} — tip: set a backup folder in the bar at the bottom so new styles are protected.`,
-          })
-        }
-      }
+      setMessage({ kind: 'ok', text: savedText + syncNote(res.sync) })
     } catch (err) {
       setMessage({ kind: 'error', text: err.message })
     }

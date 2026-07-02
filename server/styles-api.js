@@ -8,6 +8,7 @@ import os from 'node:os'
 import crypto from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { getComputerId, publishStyleWrite, publishStyleDelete } from '../src/lib/pdriveSync.js'
 
 // The shared store must be the SAME folder no matter how the server is launched
 // (npm run dev, npm run serve, a double-click launcher, or Task Scheduler with a
@@ -90,6 +91,33 @@ async function writeFileAtomic(file, data) {
   } catch (err) {
     await fs.unlink(tmp).catch(() => {})
     throw err
+  }
+}
+
+// Push a style write/delete to the shared P-drive sync root (current/ + append
+// event + recovery copy in backups/), using the ONE shared recipe in
+// pdriveSync.js — the same logic the retrieve launchers replay. The LOCAL save is
+// always primary and has already happened; this is best-effort so a disconnected
+// P-drive never blocks saving. When it can't sync (no folder set, or unreachable)
+// it returns a reason so the UI can warn that the change isn't shared yet.
+async function syncPush(kind, style) {
+  const state = await readBackupState()
+  if (!state.path) return { synced: false, reason: 'no-folder' }
+  try {
+    await fs.access(state.path)
+  } catch {
+    return { synced: false, reason: 'unreachable' }
+  }
+  try {
+    const by = getComputerId()
+    if (kind === 'delete') {
+      publishStyleDelete({ root: state.path, style, by })
+      return { synced: true, op: 'delete' }
+    }
+    const { op } = publishStyleWrite({ stylesDir: ROOT, root: state.path, style, by })
+    return { synced: true, op }
+  } catch (err) {
+    return { synced: false, reason: err.message }
   }
 }
 
@@ -188,7 +216,8 @@ async function handle(req, res) {
       prenests,
     }
     await writeFileAtomic(path.join(dir, 'style.json'), JSON.stringify(meta, null, 2))
-    return send(res, 200, { ok: true, id: style })
+    const sync = await syncPush('write', style)
+    return send(res, 200, { ok: true, id: style, sync })
   }
 
   // PDF route accepts the legacy fixed names AND per-variant / per-mode files
@@ -236,7 +265,8 @@ async function handle(req, res) {
       return send(res, 404, { error: 'Style not found' })
     }
     await fs.rm(dir, { recursive: true, force: true })
-    return send(res, 200, { ok: true, id })
+    const sync = await syncPush('delete', id)
+    return send(res, 200, { ok: true, id, sync })
   }
 
   send(res, 404, { error: 'Unknown route' })

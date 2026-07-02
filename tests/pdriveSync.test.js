@@ -12,6 +12,8 @@ import {
   seedFromLocal,
   reconcile,
   writeEvent,
+  publishStyleWrite,
+  publishStyleDelete,
   listStyleDirs,
   EVENTS_DIR,
   CURRENT_DIR,
@@ -295,6 +297,66 @@ test('reconcile refuses to wipe local styles against an empty (unseeded) root', 
   fs.mkdirSync(emptyLocal, { recursive: true })
   const r = reconcile({ stylesDir: emptyLocal, root, by: 'me' })
   assert.equal(r.added.length + r.removed.length, 0)
+})
+
+// ---- publish (Stage 4 creation) -------------------------------------------
+
+test('publishStyleWrite: add then update; event written last', () => {
+  const stylesDir = path.join(tmp(), 'styles')
+  makeStyleDir(stylesDir, 'PUR1', { 'template.pdf': 'v1' })
+  const root = path.join(tmp(), 'sync')
+
+  const r1 = publishStyleWrite({ stylesDir, root, style: 'PUR1', by: 'A' })
+  assert.equal(r1.op, 'add')
+  // current/ mirrors local; a recovery copy is parked under backups/versions/.
+  assert.equal(hashStyleFolder(path.join(root, CURRENT_DIR, 'PUR1')), hashStyleFolder(path.join(stylesDir, 'PUR1')))
+  assert.equal(fs.readdirSync(path.join(root, BACKUPS_DIR, 'versions')).length, 1)
+  const desired1 = replay(readEvents(path.join(root, EVENTS_DIR)))
+  assert.equal(desired1.get('PUR1').hash, r1.hash)
+
+  // Change the style and publish again → update, and replay tracks the new hash.
+  fs.writeFileSync(path.join(stylesDir, 'PUR1', 'template.pdf'), 'v2')
+  const r2 = publishStyleWrite({ stylesDir, root, style: 'PUR1', by: 'A' })
+  assert.equal(r2.op, 'update')
+  const desired2 = replay(readEvents(path.join(root, EVENTS_DIR)))
+  assert.equal(desired2.size, 1)
+  assert.equal(desired2.get('PUR1').hash, hashStyleFolder(path.join(stylesDir, 'PUR1')))
+  assert.equal(fs.readdirSync(path.join(root, BACKUPS_DIR, 'versions')).length, 2, 'both versions parked')
+})
+
+test('publishStyleDelete: removes from current/, parks bytes, replay drops it', () => {
+  const stylesDir = path.join(tmp(), 'styles')
+  makeStyleDir(stylesDir, 'PUR1', { 'template.pdf': 'x' })
+  const root = path.join(tmp(), 'sync')
+  publishStyleWrite({ stylesDir, root, style: 'PUR1', by: 'A' })
+
+  const d = publishStyleDelete({ root, style: 'PUR1', by: 'A' })
+  assert.equal(d.existed, true)
+  assert.ok(!fs.existsSync(path.join(root, CURRENT_DIR, 'PUR1')), 'removed from current/')
+  assert.equal(fs.readdirSync(path.join(root, BACKUPS_DIR, 'deleted')).length, 1, 'bytes parked')
+  assert.equal(replay(readEvents(path.join(root, EVENTS_DIR))).size, 0, 'replay drops it')
+})
+
+test('cross-machine: A publishes/deletes, B picks it up on next reconcile', () => {
+  const root = path.join(tmp(), 'sync')
+  const aStyles = path.join(tmp(), 'A-styles')
+  const bStyles = path.join(tmp(), 'B-styles')
+  fs.mkdirSync(bStyles, { recursive: true })
+
+  // A creates PUR_NEW and publishes it.
+  makeStyleDir(aStyles, 'PUR_NEW', { 'template.pdf': 'hello' })
+  publishStyleWrite({ stylesDir: aStyles, root, style: 'PUR_NEW', by: 'A' })
+
+  // B syncs → gets it.
+  const r1 = reconcile({ stylesDir: bStyles, root, by: 'B' })
+  assert.deepEqual(r1.added, ['PUR_NEW'])
+  assert.ok(fs.existsSync(path.join(bStyles, 'PUR_NEW', 'template.pdf')))
+
+  // A deletes it; B syncs again → it's removed on B.
+  publishStyleDelete({ root, style: 'PUR_NEW', by: 'A' })
+  const r2 = reconcile({ stylesDir: bStyles, root, by: 'B' })
+  assert.deepEqual(r2.removed, ['PUR_NEW'])
+  assert.ok(!fs.existsSync(path.join(bStyles, 'PUR_NEW')), 'gone on B')
 })
 
 test('listStyleDirs ignores folders without style.json', () => {

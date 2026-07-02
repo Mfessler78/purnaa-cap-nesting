@@ -2,6 +2,20 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(sync,stage4): style creation/deletion now publishes to the sync root.
+  `pdriveSync.js` gains `publishStyleWrite` (copy local → `current/`, park a
+  versioned recovery copy in `backups/versions/`, then append the add|update event
+  LAST so a crash can't leave `current/` changed with no event) and
+  `publishStyleDelete` (park bytes in `backups/deleted/`, append the delete event,
+  then remove `current/<style>`). `server/styles-api.js` calls these from POST and
+  DELETE via a best-effort `syncPush` — the local save is always primary, so a
+  disconnected P-drive never blocks saving; the response carries a `sync` status.
+  MappingTool surfaces that status and drops the old "back up now?" prompt (saving
+  now auto-shares); removed the now-unused `getBackupStatus`/`runBackup` imports.
+  Verified: unit tests (add→update, delete, cross-machine A-publishes/B-retrieves)
+  and a real `handle()` integration run (POST add/update, DELETE) against a scratch
+  root, including the unreachable-folder warning. ARCHITECTURE §4 updated.
+
 - feat(sync,stage3): rewrite Retrieve to replay + reconcile. `pdriveSync.js` gains
   `reconcile()` (add / update / skip-unchanged / delete-with-recoverable-warning
   against the replayed desired set; a style listed but absent from `current/` is
