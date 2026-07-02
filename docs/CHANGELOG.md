@@ -2,6 +2,14 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(retrieve): "Retrieve New Styles from P Drive" now pulls EVERY style found
+  across ALL `capnest-backup-*` snapshots (newest copy of each wins), instead of
+  mirroring only the single newest snapshot and deleting anything not in it —
+  which handed a fresh machine just the one or two styles the last machine
+  happened to back up. It is now an additive merge (nothing local is deleted).
+  Windows copies with `robocopy` (retries + size-verifies over the network) so a
+  truncated PDF — seen in the app as "Invalid Root reference" — can't slip in.
+  `.command`, `.ps1` (Mac uses `cp`); `.bat`/SETUP-CARD wording updated.
 - fix(install,update): install/update now act on the app folder the launcher
   lives in (parent of `COMMAND CENTER/`), falling back to `~/purnaa-cap-nesting`
   only when launched from outside one. Stops the master Mac cloning/operating on

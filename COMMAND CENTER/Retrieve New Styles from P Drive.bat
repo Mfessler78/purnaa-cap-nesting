@@ -2,9 +2,9 @@
 REM ===========================================================================
 REM  Purnaa Cap Nesting - RETRIEVE NEW STYLES from the P drive (Windows)
 REM
-REM  Double-click to copy the NEWEST style backup from the P drive onto this
-REM  computer (the mapped styles + the fabric list). Use this on a freshly
-REM  set-up machine, or any machine that should match the latest mapped styles.
+REM  Double-click to copy EVERY style found across all P-drive backups onto this
+REM  computer (the newest copy of each, + the fabric list). Use this on a freshly
+REM  set-up machine, or any machine that should have all styles anyone has mapped.
 REM
 REM  This updates DATA only. It does NOT change program code - use
 REM  "update.bat" for that. Connect to the P drive first.

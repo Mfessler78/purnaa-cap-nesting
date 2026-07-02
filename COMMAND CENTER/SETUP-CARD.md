@@ -42,7 +42,7 @@ The app lives at: **http://localhost:4173**
 ### When there are new styles — RETRIEVE NEW STYLES
 1. Make sure you are **connected to the office network / P drive**.
 2. Double-click **Retrieve New Styles from P Drive.bat**.
-3. It pulls the newest styles and fabric list onto this computer.
+3. It pulls every style found across all P-drive backups (newest copy of each) plus the fabric list.
    This changes styles only, never the program.
 
 ---
@@ -78,7 +78,7 @@ The app lives at: **http://localhost:4173**
 ### When there are new styles — RETRIEVE NEW STYLES
 1. Make sure you are **connected to the office network / P drive**.
 2. Double-click **Retrieve New Styles from P Drive.command**.
-3. It pulls the newest styles and fabric list onto this computer.
+3. It pulls every style found across all P-drive backups (newest copy of each) plus the fabric list.
    This changes styles only, never the program.
 
 ---

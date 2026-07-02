@@ -2,9 +2,9 @@
 # ============================================================================
 #  Purnaa Cap Nesting - RETRIEVE NEW STYLES from the P drive (Mac)
 #
-#  Double-click to copy the NEWEST style backup from the P drive onto this
-#  computer (the mapped styles + the fabric list). Use this on a freshly set-up
-#  machine, or any machine that should match the latest styles someone mapped.
+#  Double-click to copy EVERY style found across all P-drive backups onto this
+#  computer (the newest copy of each, + the fabric list). Use this on a freshly
+#  set-up machine, or any machine that should have all styles anyone has mapped.
 #
 #  This updates DATA only. It does NOT change the program code - use
 #  "update.command" for that. You must be connected to the P drive first.
@@ -51,43 +51,45 @@ if [ ! -d "$DEST" ]; then
   exit 1
 fi
 
-# Newest snapshot wins: the folder names are timestamps, so a plain sort works.
-LATEST="$(ls -1d "$DEST"/capnest-backup-* 2>/dev/null | sort | tail -1)"
-if [ -z "$LATEST" ] || [ ! -d "$LATEST/styles" ]; then
+# EVERY snapshot, oldest -> newest. We do NOT trust the single newest snapshot:
+# different machines back up their own subset of styles to the same P-drive
+# parent, so the latest folder is just whoever backed up last (often one or two
+# styles). Folder names are timestamps, so a plain sort is chronological.
+SNAPS=()
+while IFS= read -r d; do
+  [ -d "$d/styles" ] && SNAPS+=("$d")
+done < <(ls -1d "$DEST"/capnest-backup-* 2>/dev/null | sort)
+if [ "${#SNAPS[@]}" -eq 0 ]; then
   popup "No style backups were found on the P drive yet. Back up styles from the host first (the app's 'Back up now' button)." caution
   exit 1
 fi
 
-# Confirm before mirroring - this makes local styles MATCH the backup exactly:
-# new/renamed styles come in, and styles not in the backup are removed locally.
-ANS="$(osascript -e "display dialog \"This will make this computer's styles match the latest P-drive backup ($(basename "$LATEST")) exactly: new and renamed styles are added, and any local style NOT in that backup is removed. The fabric list is also updated. Your program code is not affected. Continue?\" buttons {\"Cancel\",\"Update styles\"} default button \"Update styles\"" -e 'button returned of result' 2>/dev/null)"
+# Confirm before pulling. This is a MERGE, newest copy of each style wins; nothing
+# local is deleted, because no single snapshot is the full picture anymore.
+ANS="$(osascript -e "display dialog \"This will pull EVERY style found across all ${#SNAPS[@]} P-drive backups onto this computer, using the newest copy of each. New styles are added and existing ones are updated; nothing is deleted. The fabric list is also updated. Your program code is not affected. Continue?\" buttons {\"Cancel\",\"Update styles\"} default button \"Update styles\"" -e 'button returned of result' 2>/dev/null)"
 if [ "$ANS" != "Update styles" ]; then
   echo "  Cancelled - nothing changed."
   exit 0
 fi
 
 echo ""
-echo "  Updating styles from the P drive (mirroring the latest backup)..."
+echo "  Pulling styles from ${#SNAPS[@]} P-drive backup(s) (newest copy of each style wins)..."
 mkdir -p styles
-# 1. Remove local style folders NOT in the latest backup. The backup is a full copy
-#    of the host, so a folder missing from it was deleted or renamed on the host;
-#    dropping it here keeps local an exact mirror (no stale or duplicate styles).
-for local in styles/*/; do
-  [ -d "$local" ] || continue
-  name="$(basename "$local")"
-  if [ ! -e "$LATEST/styles/$name" ]; then
-    rm -rf "$local"
-    echo "  removed (not in backup): $name"
+# Merge each snapshot's styles into local, oldest first so a newer snapshot's copy
+# of a style overwrites an older one.
+for snap in "${SNAPS[@]}"; do
+  cp -R "$snap/styles/." styles/ || { popup "Could not copy the styles. Make sure the P drive is still connected, then try again." stop; exit 1; }
+done
+
+# Fabric list only (never touch this machine's local backup.json settings): take it
+# from the newest snapshot that has one.
+for ((i=${#SNAPS[@]}-1; i>=0; i--)); do
+  if [ -f "${SNAPS[$i]}/data/fabrics.json" ]; then
+    mkdir -p data
+    cp "${SNAPS[$i]}/data/fabrics.json" data/fabrics.json
+    break
   fi
 done
-# 2. Copy every style from the latest backup on top of local (adds new, updates changed).
-cp -R "$LATEST/styles/." styles/ || { popup "Could not copy the styles. Make sure the P drive is still connected, then try again." stop; exit 1; }
-
-# Fabric list only - never touch this machine's local backup.json settings.
-if [ -f "$LATEST/data/fabrics.json" ]; then
-  mkdir -p data
-  cp "$LATEST/data/fabrics.json" data/fabrics.json
-fi
 
 echo "  Done."
-popup "Styles and fabric list updated from the P-drive backup: $(basename "$LATEST"). Refresh the app to see them." note
+popup "Styles and fabric list updated from ${#SNAPS[@]} P-drive backup(s). Refresh the app to see them." note
