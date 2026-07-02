@@ -9,7 +9,7 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-06-30. Update the date when you change this file.
+> Last updated: 2026-07-02. Update the date when you change this file.
 
 ---
 
@@ -104,7 +104,10 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │       ├── detectRegions.js #   auto-detect closed paths as candidate slots (M6)
 │       ├── scanRegions.js   #   region scanning support for auto-detect
 │       ├── dxf.js           #   DXF-related handling (laser path / geometry)
-│       └── api.js           #   client → server middleware calls
+│       ├── api.js           #   client → server middleware calls
+│       └── pdriveSync.js    #   P-drive style sync: computer-id, content hash,
+│                            #   append-only events, replay, seed, reconcile
+│                            #   (Node-only; shared by the retrieve CLI + server)
 │
 ├── server/                  # "back end" #2: tiny Vite dev-server middleware. Keep minimal.
 │   ├── styles-api.js        #   read/write style maps, fabric table, optional gs export
@@ -144,8 +147,14 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │   ├── install.command   install.bat
 │   ├── start.command     start.bat
 │   ├── update.command    update.bat            # updates the PROGRAM from GitHub
-│   ├── Retrieve New Styles from P Drive.command / .bat   (+ pdrive-update-styles.ps1)
+│   ├── Retrieve New Styles from P Drive.command / .bat  # thin launchers →
+│   │                        #   node scripts/pdrive-retrieve.js (event-log sync)
 │   └── SETUP-CARD.md        #   the plain-language guide
+│
+├── scripts/                 # Node CLIs run by launchers / owner
+│   ├── backup.js            #   (existing) npm run backup
+│   ├── pdrive-migrate.js    #   owner-run ONCE: seed the fresh sync root (Stage 2)
+│   └── pdrive-retrieve.js   #   the retrieve launchers' entry: replay + reconcile
 ├── package.json  vite.config.js  index.html
 └── (owner-only, untracked: PUBLISH UPDATE (owner).command,
      BACKUP TO P DRIVE FOR MAC.command — master Mac only, never shipped)

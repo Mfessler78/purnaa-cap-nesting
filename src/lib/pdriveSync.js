@@ -266,3 +266,116 @@ export function seedFromLocal({ stylesDir, root, by, now = () => new Date() }) {
   }
   return result
 }
+
+// ---- Reconcile (Stage 3 retrieve) -----------------------------------------
+// Bring THIS machine's local styles/ into line with the desired set computed by
+// replaying events. This REPLACES the old "merge every snapshot" retrieve.
+//   in set, not local            -> ADD    (copy from current/)
+//   in set, local, hash differs  -> UPDATE (copy from current/)
+//   in set, local, hash matches  -> SKIP   (the fast path — no 10-min re-copy)
+//   local, not in set            -> DELETE locally, after backing the bytes up,
+//                                    and print a named, recoverable warning
+//   in set, missing in current/  -> SKIP + warn (log inconsistency, touch nothing)
+// `log(line)` receives each progress line; the CLI passes console.log. Deletes
+// are recoverable both from event history and from backups/ (belt-and-suspenders).
+function dirSizeBytes(dir) {
+  let total = 0
+  const stack = [dir]
+  while (stack.length) {
+    const d = stack.pop()
+    let entries
+    try {
+      entries = fs.readdirSync(d, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const e of entries) {
+      const full = path.join(d, e.name)
+      if (e.isDirectory()) stack.push(full)
+      else {
+        try {
+          total += fs.statSync(full).size
+        } catch {}
+      }
+    }
+  }
+  return total
+}
+
+function fmtSize(bytes) {
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1e3))} KB`
+}
+
+// Copy a deleted-locally style's bytes into backups/deleted/<style>__<hash> so
+// they're guaranteed present. Deduped by content hash: if the same bytes are
+// already parked there, don't copy again. Returns the backups-relative path.
+export function backupDeletedStyle(dirs, style, srcDir, hash) {
+  const dest = path.join(dirs.backups, 'deleted', `${safeName(style)}__${hash.slice(0, 12)}`)
+  if (!dirExists(dest)) replaceDir(srcDir, dest)
+  return path.join('deleted', `${safeName(style)}__${hash.slice(0, 12)}`)
+}
+
+export function reconcile({ stylesDir, root, by: _by, now = () => new Date(), log = () => {}, allowEmpty = false }) {
+  const dirs = ensureScaffold(root)
+  const events = readEvents(dirs.events)
+  const desired = replay(events)
+  log(`Reading style events...  ${events.length} events -> ${desired.size} current styles.`)
+
+  fs.mkdirSync(stylesDir, { recursive: true })
+  const local = new Set(listStyleDirs(stylesDir))
+  log(`This computer: ${local.size} styles present.`)
+
+  // Safety: no events at all means this folder is not a seeded sync root (most
+  // likely you pointed at the wrong/old folder, or the one-time setup hasn't run).
+  // Reconciling would delete every local style, so refuse instead of destroying.
+  if (events.length === 0 && local.size > 0 && !allowEmpty) {
+    throw new Error(
+      'This sync folder has no style events yet — it does not look like the seeded sync ' +
+        'root. Refusing to touch your local styles (that would delete all of them). Make ' +
+        'sure the Backup folder points at the seeded sync folder (…-Sync) and that the ' +
+        'master has run the one-time setup.',
+    )
+  }
+
+  const result = { added: [], updated: [], unchanged: [], removed: [], missing: [] }
+  const styles = [...desired.keys()].sort()
+  const width = String(styles.length).length
+  styles.forEach((style, idx) => {
+    const tag = `[${String(idx + 1).padStart(width)}/${styles.length}]`
+    const want = desired.get(style)
+    const curDir = path.join(dirs.current, style)
+    const localDir = path.join(stylesDir, style)
+
+    if (!dirExists(curDir)) {
+      result.missing.push(style)
+      log(`${tag} ${style}   WARNING: listed as current but absent from current/ -> skipped`)
+      return
+    }
+    if (!local.has(style)) {
+      replaceDir(curDir, localDir)
+      result.added.push(style)
+      log(`${tag} ${style}   new      -> adding...   done (${fmtSize(dirSizeBytes(localDir))})`)
+      return
+    }
+    if (hashStyleFolder(localDir) === want.hash) {
+      result.unchanged.push(style)
+      log(`${tag} ${style}   unchanged, skip`)
+      return
+    }
+    replaceDir(curDir, localDir)
+    result.updated.push(style)
+    log(`${tag} ${style}   changed  -> updating... done (${fmtSize(dirSizeBytes(localDir))})`)
+  })
+
+  for (const style of [...local].sort()) {
+    if (desired.has(style)) continue
+    const localDir = path.join(stylesDir, style)
+    const hash = hashStyleFolder(localDir)
+    const rel = backupDeletedStyle(dirs, style, localDir, hash)
+    fs.rmSync(localDir, { recursive: true, force: true })
+    result.removed.push(style)
+    log(`Not in current set: ${style} -> deleting locally (recoverable from backups/${rel})`)
+  }
+  return result
+}

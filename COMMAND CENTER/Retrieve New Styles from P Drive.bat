@@ -1,18 +1,22 @@
 @echo off
+setlocal enableextensions
 REM ===========================================================================
-REM  Purnaa Cap Nesting - RETRIEVE NEW STYLES from the P drive (Windows)
+REM  Purnaa Cap Nesting - RETRIEVE STYLES from the P drive (Windows)
 REM
-REM  Double-click to copy EVERY style found across all P-drive backups onto this
-REM  computer (the newest copy of each, + the fabric list). Use this on a freshly
-REM  set-up machine, or any machine that should have all styles anyone has mapped.
+REM  Double-click to bring this computer's styles into line with the shared set
+REM  on the P drive: new styles are added, changed ones updated, unchanged ones
+REM  skipped (fast), and styles deleted/renamed on the shared set are removed
+REM  here too (a named warning prints for each; every removal stays recoverable
+REM  from the sync folder's backups\). The live progress prints in this window.
 REM
-REM  This updates DATA only. It does NOT change program code - use
-REM  "update.bat" for that. Connect to the P drive first.
+REM  This updates DATA only. It does NOT change program code - use "update.bat"
+REM  for that. Connect to the P drive first.
+REM
+REM  All the real work is in scripts\pdrive-retrieve.js so Mac and Windows run
+REM  the exact same logic. This launcher just finds the app + Node and runs it.
 REM ===========================================================================
 REM Operate on the app folder THIS launcher belongs to (COMMAND CENTER lives
-REM inside the app), the same way start.bat does. We read the backup folder from
-REM data\backup.json: the running app writes it next to its own copy, so
-REM retrieving must read the SAME copy or it sees "not set" on a stray clone.
+REM inside the app), so we read the SAME data\backup.json the running app wrote.
 REM Fall back to the standard install path only when launched from outside an app
 REM folder (e.g. first-time setup run from the Desktop).
 set "APP_DIR=%USERPROFILE%\purnaa-cap-nesting"
@@ -27,10 +31,19 @@ if not exist "%APP_DIR%\.git" (
   exit /b 1
 )
 
-REM Run the styles helper FROM the installed app folder so it reads this
-REM machine's data\backup.json and writes into the app's styles\ folder.
+where node >nul 2>&1
+if errorlevel 1 (
+  echo [PROBLEM] Node is not set up yet on this computer.
+  echo Please double-click install.bat first.
+  echo.
+  pause
+  exit /b 1
+)
+
 pushd "%APP_DIR%"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0pdrive-update-styles.ps1"
+node "scripts\pdrive-retrieve.js"
+set "STATUS=%errorlevel%"
 popd
 echo.
 pause
+exit /b %STATUS%

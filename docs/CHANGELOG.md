@@ -2,6 +2,23 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(sync,stage3): rewrite Retrieve to replay + reconcile. `pdriveSync.js` gains
+  `reconcile()` (add / update / skip-unchanged / delete-with-recoverable-warning
+  against the replayed desired set; a style listed but absent from `current/` is
+  skipped, not deleted) and `scripts/pdrive-retrieve.js` (reads the sync root from
+  `data/backup.json`, prints a per-line progress log + summary). Both retrieve
+  launchers are now thin wrappers over that one Node script — deleted
+  `pdrive-update-styles.ps1`, so Mac and Windows run identical logic with no
+  bash/PowerShell drift. This ends the merge-all-snapshots behavior that
+  resurrected renamed/deleted styles and re-copied everything each run; unchanged
+  styles are now skipped (the fast path). Retrieve is now styles-only — the fabric
+  list travels via git (`data/fabrics.json`), no longer copied by retrieve.
+  Verified via unit tests (add/update/skip/delete/rename-then-delete/missing) and a
+  real CLI dry-run (10 local/11 desired + outlier → 1 added, 10 unchanged, 1
+  removed+parked; re-run → all unchanged). ARCHITECTURE §3 updated. Not yet wired
+  into creation (Stage 4). Still requires the one-time seed (Stage 2) + repointing
+  `backup.json` to the new sync root before it goes live.
+
 - feat(sync,stage2): one-time migration/seed. `pdriveSync.js` gains the
   append-only event layer — `writeEvent`/`readEvents` (unique-name, atomic,
   torn-file-tolerant), `replay` (fold add/update/delete by `at`, tie-break by

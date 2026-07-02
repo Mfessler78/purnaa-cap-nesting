@@ -42,8 +42,10 @@ The app lives at: **http://localhost:4173**
 ### When there are new styles — RETRIEVE NEW STYLES
 1. Make sure you are **connected to the office network / P drive**.
 2. Double-click **Retrieve New Styles from P Drive.bat**.
-3. It pulls every style found across all P-drive backups (newest copy of each) plus the fabric list.
-   This changes styles only, never the program.
+3. It matches this computer's styles to the shared set: new ones are added, changed
+   ones updated, and styles removed on the shared set are removed here too (each
+   removal prints a note and stays recoverable from the sync folder's `backups\`).
+   Progress prints in the window. This changes styles only, never the program.
 
 ---
 
@@ -78,8 +80,10 @@ The app lives at: **http://localhost:4173**
 ### When there are new styles — RETRIEVE NEW STYLES
 1. Make sure you are **connected to the office network / P drive**.
 2. Double-click **Retrieve New Styles from P Drive.command**.
-3. It pulls every style found across all P-drive backups (newest copy of each) plus the fabric list.
-   This changes styles only, never the program.
+3. It matches this computer's styles to the shared set: new ones are added, changed
+   ones updated, and styles removed on the shared set are removed here too (each
+   removal prints a note and stays recoverable from the sync folder's `backups/`).
+   Progress prints in the window. This changes styles only, never the program.
 
 ---
 

@@ -10,6 +10,8 @@ import {
   readEvents,
   replay,
   seedFromLocal,
+  reconcile,
+  writeEvent,
   listStyleDirs,
   EVENTS_DIR,
   CURRENT_DIR,
@@ -177,6 +179,122 @@ test('seedFromLocal writes an update event when a style changed since last seed'
     hashStyleFolder(path.join(stylesDir, 'PUR1')),
     'replayed hash tracks the new content',
   )
+})
+
+// ---- reconcile (Stage 3 retrieve) -----------------------------------------
+
+// Build a sync root seeded with the given style names, plus a separate local
+// styles dir. Returns { root, localDir, master }.
+function seededWorld(styleNames) {
+  const master = path.join(tmp(), 'master-styles')
+  for (const s of styleNames) makeStyleDir(master, s, { 'template.pdf': `T-${s}`, 'prenest.pdf': `P-${s}` })
+  const root = path.join(tmp(), 'sync')
+  seedFromLocal({ stylesDir: master, root, by: 'master' })
+  return { root, localDir: path.join(tmp(), 'local-styles'), master }
+}
+
+// Copy a style from the root's current/ into a local styles dir (byte-identical,
+// so its hash matches → the "unchanged/skip" path).
+function pullLocal(root, localDir, style) {
+  fs.mkdirSync(localDir, { recursive: true })
+  fs.cpSync(path.join(root, CURRENT_DIR, style), path.join(localDir, style), { recursive: true })
+}
+
+test('reconcile adds new, skips unchanged (10 local / 11 desired)', () => {
+  const names = Array.from({ length: 11 }, (_, i) => `PUR${i + 1}`)
+  const { root, localDir } = seededWorld(names)
+  for (const s of names.slice(0, 10)) pullLocal(root, localDir, s) // 10 present, PUR11 missing
+
+  const r = reconcile({ stylesDir: localDir, root, by: 'me' })
+  assert.deepEqual(r.added, ['PUR11'])
+  assert.equal(r.updated.length, 0)
+  assert.equal(r.unchanged.length, 10)
+  assert.equal(r.removed.length, 0)
+  assert.deepEqual(listStyleDirs(localDir).sort(), names.sort())
+})
+
+test('reconcile deletes a local outlier and parks it in backups/ (12 local / 11 desired)', () => {
+  const names = Array.from({ length: 11 }, (_, i) => `PUR${i + 1}`)
+  const { root, localDir } = seededWorld(names)
+  for (const s of names) pullLocal(root, localDir, s)
+  makeStyleDir(localDir, 'PUR_OUTLIER', { 'template.pdf': 'orphan-bytes' }) // 12th, not in set
+
+  const r = reconcile({ stylesDir: localDir, root, by: 'me' })
+  assert.deepEqual(r.removed, ['PUR_OUTLIER'])
+  assert.ok(!fs.existsSync(path.join(localDir, 'PUR_OUTLIER')), 'outlier removed locally')
+  // Bytes are recoverable in backups/deleted/.
+  const deleted = fs.readdirSync(path.join(root, BACKUPS_DIR, 'deleted'))
+  assert.equal(deleted.length, 1)
+  assert.match(deleted[0], /^PUR_OUTLIER__/)
+  assert.equal(
+    fs.readFileSync(path.join(root, BACKUPS_DIR, 'deleted', deleted[0], 'template.pdf'), 'utf8'),
+    'orphan-bytes',
+  )
+})
+
+test('reconcile updates a locally-stale style', () => {
+  const { root, localDir } = seededWorld(['PUR1'])
+  pullLocal(root, localDir, 'PUR1')
+  fs.writeFileSync(path.join(localDir, 'PUR1', 'template.pdf'), 'STALE-LOCAL-EDIT') // diverge
+
+  const r = reconcile({ stylesDir: localDir, root, by: 'me' })
+  assert.deepEqual(r.updated, ['PUR1'])
+  assert.equal(
+    fs.readFileSync(path.join(localDir, 'PUR1', 'template.pdf'), 'utf8'),
+    'T-PUR1',
+    'local now matches current/',
+  )
+})
+
+test('reconcile: renamed-then-deleted style does not reappear', () => {
+  const { root, localDir } = seededWorld(['PUR_NEW'])
+  const events = path.join(root, EVENTS_DIR)
+  // Simulate a rename that happened earlier: PUR_OLD added then deleted.
+  writeEvent(events, { op: 'add', style: 'PUR_OLD', at: '2020-01-01T00:00:00.000Z', by: 'x', hash: 'h' })
+  writeEvent(events, { op: 'delete', style: 'PUR_OLD', at: '2020-01-02T00:00:00.000Z', by: 'x' })
+  // This machine still has the old name locally.
+  makeStyleDir(localDir, 'PUR_OLD', { 'template.pdf': 'old' })
+  pullLocal(root, localDir, 'PUR_NEW')
+
+  const r = reconcile({ stylesDir: localDir, root, by: 'me' })
+  assert.ok(r.removed.includes('PUR_OLD'), 'old name removed')
+  assert.ok(!fs.existsSync(path.join(localDir, 'PUR_OLD')), 'old name gone, does not reappear')
+  assert.deepEqual(listStyleDirs(localDir), ['PUR_NEW'])
+})
+
+test('reconcile: all-unchanged run makes no changes (fast path)', () => {
+  const names = ['A', 'B', 'C']
+  const { root, localDir } = seededWorld(names)
+  for (const s of names) pullLocal(root, localDir, s)
+
+  const r = reconcile({ stylesDir: localDir, root, by: 'me' })
+  assert.equal(r.unchanged.length, 3)
+  assert.equal(r.added.length + r.updated.length + r.removed.length, 0)
+})
+
+test('reconcile: style listed but absent from current/ is skipped, not deleted', () => {
+  const { root, localDir } = seededWorld(['A'])
+  pullLocal(root, localDir, 'A')
+  // An event references B but current/B was never created.
+  writeEvent(path.join(root, EVENTS_DIR), { op: 'add', style: 'B', at: '2030-01-01T00:00:00.000Z', by: 'x', hash: 'h' })
+
+  const r = reconcile({ stylesDir: localDir, root, by: 'me' })
+  assert.deepEqual(r.missing, ['B'])
+  assert.equal(r.unchanged.length, 1) // A untouched
+  assert.equal(r.added.length + r.removed.length, 0)
+})
+
+test('reconcile refuses to wipe local styles against an empty (unseeded) root', () => {
+  const root = path.join(tmp(), 'empty-root')
+  const localDir = path.join(tmp(), 'local')
+  makeStyleDir(localDir, 'PUR1', { 'template.pdf': 'x' })
+  assert.throws(() => reconcile({ stylesDir: localDir, root, by: 'me' }), /no style events yet/)
+  assert.ok(fs.existsSync(path.join(localDir, 'PUR1')), 'local style left intact')
+  // A genuinely-empty root with no local styles is a harmless no-op.
+  const emptyLocal = path.join(tmp(), 'empty-local')
+  fs.mkdirSync(emptyLocal, { recursive: true })
+  const r = reconcile({ stylesDir: emptyLocal, root, by: 'me' })
+  assert.equal(r.added.length + r.removed.length, 0)
 })
 
 test('listStyleDirs ignores folders without style.json', () => {
