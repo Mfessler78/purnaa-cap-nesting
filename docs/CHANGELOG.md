@@ -2,6 +2,17 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(sync,stage1): add `src/lib/pdriveSync.js` — shared Node foundations for the
+  append-only P-drive style sync (replacing merge-all-snapshots). One
+  implementation for both Mac and Windows launchers (no bash/PowerShell drift):
+  `getComputerId` (stable per-machine id in `~/.purnaa-tools/computer-id`, minted
+  once), `hashStyleFolder` (sha256 over sorted `relPath+NUL+bytes+NUL`, OS-order-
+  independent; `updatedAt` participates so a real save = update, byte-identical
+  folder = skip), and `ensureScaffold` (create-if-absent `events/current/backups`).
+  Node-builtins only, no new dependency; not yet wired into retrieve/creation.
+  Tests in `tests/pdriveSync.test.js`. New sync root will be a fresh sibling on the
+  P-drive: `…/Printing/zPurnaa-Cap-Nesting-Sync/` (old `…-Program-Backup/` left as-is).
+
 - fix(retrieve): "Retrieve New Styles from P Drive" now pulls EVERY style found
   across ALL `capnest-backup-*` snapshots (newest copy of each wins), instead of
   mirroring only the single newest snapshot and deleting anything not in it —
