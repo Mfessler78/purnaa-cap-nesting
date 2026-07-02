@@ -2,6 +2,19 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- refactor(sync,stage4.5): retire the full-snapshot backup; no more clutter in the
+  sync folder. With saves auto-publishing (Stage 4) and per-version/-deletion
+  recovery copies parked under the root's own `backups/`, the old "Back up now" +
+  weekly auto-backup — which wrote dated `capnest-backup-*` full-copy folders into
+  the configured folder — are redundant. Removed `performBackup`, the `/backup/run`
+  and `/backup/auto` routes, and the change/week-elapsed tracking; `data/backup.json`
+  is now just `{ path }` (the sync root). `BackupBar` becomes a slim sync-folder
+  manager (set/browse/change + "styles are shared automatically"); dropped the
+  `runBackup`/`autoBackup` API helpers and the `capnest-backup` window event. The
+  owner's separate full-program zip (`BACKUP TO P DRIVE FOR MAC.command`) is
+  untouched. Verified: full suite + build green; server smoke test (GET status,
+  POST /config work; POST /run now 404). ARCHITECTURE §3 updated.
+
 - feat(sync,stage4): style creation/deletion now publishes to the sync root.
   `pdriveSync.js` gains `publishStyleWrite` (copy local → `current/`, park a
   versioned recovery copy in `backups/versions/`, then append the add|update event

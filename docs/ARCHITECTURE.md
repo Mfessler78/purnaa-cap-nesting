@@ -91,7 +91,8 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │   ├── RunScreen.jsx        # Santosh's screen: pick style/fabric/qty, upload, preview, export
 │   ├── MappingTool.jsx      # Mila's screen: label slots (piece_type + instance + rotation)
 │   ├── FabricsScreen.jsx    # edit the fabric stretch table
-│   ├── BackupBar.jsx        # backup UI
+│   ├── BackupBar.jsx        # sync-folder UI (points this machine at the P-drive
+│   │                        #   sync root; saves auto-share — no manual backup)
 │   ├── PdfViewer.jsx        # renders a PDF to canvas for viewing
 │   ├── PdfBoxEditor.jsx     # draw/edit slot boxes over a rendered PDF
 │   ├── index.css
@@ -121,7 +122,7 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │
 ├── data/
 │   ├── fabrics.json         # fabric → stretch % table
-│   └── backup.json
+│   └── backup.json          # host-local: { path } = the P-drive sync root
 │
 ├── test-files/              # REAL customer/production PDFs, by style number (dev input)
 │   ├── 60101/  60104/  60203/

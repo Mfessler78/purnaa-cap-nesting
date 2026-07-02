@@ -427,22 +427,21 @@ async function handleHost(req, res) {
   })
 }
 
-// ---- Backup (M17) ---------------------------------------------------------
-// Styles + fabric data live only on the host's local disk. Backup copies them
-// to a configured folder (e.g. the P drive) as DATED snapshots — never
-// overwriting in place — so a bad save can't destroy the only good copy. The
-// configured folder and the last-backup time are remembered in data/backup.json
-// (host-specific state, not committed). The P drive is a parachute: we back up
-// TO it, we never run FROM it.
+// ---- Sync folder (P-drive) ------------------------------------------------
+// data/backup.json remembers the shared SYNC ROOT this machine points at — the
+// P-drive folder holding events/current/backups. Host-specific state, not
+// committed. Style saves/deletes publish into it automatically (syncPush) and the
+// retrieve launchers replay it, so there is NO separate "back up now" step and no
+// dated full-snapshot folders piling up in it. Recovery copies land tidily under
+// the root's own backups/ (per-version + per-deletion). The P drive is a
+// parachute we write TO and never run FROM.
 const BACKUP_STATE = path.join(APP_ROOT, 'data', 'backup.json')
-const SRC_DIRS = ['styles', 'data']
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 async function readBackupState() {
   try {
     return JSON.parse(await fs.readFile(BACKUP_STATE, 'utf8'))
   } catch {
-    return { path: null, lastBackupAt: null, lastBackupName: null }
+    return { path: null }
   }
 }
 
@@ -451,69 +450,9 @@ async function writeBackupState(state) {
   await writeFileAtomic(BACKUP_STATE, JSON.stringify(state, null, 2))
 }
 
-// Newest modification time across the style + fabric files (ignoring our own
-// backup-state file), so we can tell whether anything changed since last backup.
-async function latestSourceMtime() {
-  let newest = 0
-  async function walk(dir) {
-    let entries
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const e of entries) {
-      const full = path.join(dir, e.name)
-      if (path.resolve(full) === path.resolve(BACKUP_STATE)) continue
-      if (e.isDirectory()) await walk(full)
-      else {
-        try {
-          const st = await fs.stat(full)
-          if (st.mtimeMs > newest) newest = st.mtimeMs
-        } catch {}
-      }
-    }
-  }
-  for (const d of SRC_DIRS) await walk(path.join(APP_ROOT, d))
-  return newest
-}
-
-function backupStamp(d = new Date()) {
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
-}
-
-async function performBackup(state) {
-  if (!state.path) throw new Error('No backup folder is set yet.')
-  // The configured path is the PARENT; each backup is a new dated subfolder.
-  const dest = path.join(state.path, `capnest-backup-${backupStamp()}`)
-  await fs.mkdir(dest, { recursive: true })
-  for (const d of SRC_DIRS) {
-    const from = path.join(APP_ROOT, d)
-    try {
-      await fs.access(from)
-    } catch {
-      continue
-    }
-    await fs.cp(from, path.join(dest, d), { recursive: true })
-  }
-  const next = { ...state, lastBackupAt: new Date().toISOString(), lastBackupName: path.basename(dest) }
-  await writeBackupState(next)
-  return next
-}
-
 async function backupStatus() {
   const state = await readBackupState()
-  const newest = await latestSourceMtime()
-  const lastMs = state.lastBackupAt ? Date.parse(state.lastBackupAt) : 0
-  return {
-    path: state.path,
-    configured: !!state.path,
-    lastBackupAt: state.lastBackupAt,
-    lastBackupName: state.lastBackupName,
-    changed: !state.lastBackupAt || newest > lastMs,
-    weekElapsed: !state.lastBackupAt || Date.now() - lastMs >= WEEK_MS,
-  }
+  return { path: state.path || null, configured: !!state.path }
 }
 
 // Open the host OS's native folder chooser and return the picked path (or null
@@ -604,9 +543,7 @@ async function handleBackup(req, res) {
         error: `Can't reach or create that folder: ${p}. Check the drive/share is connected and the path is correct.`,
       })
     }
-    const state = await readBackupState()
-    state.path = p
-    await writeBackupState(state)
+    await writeBackupState({ path: p })
     return send(res, 200, await backupStatus())
   }
 
@@ -620,31 +557,6 @@ async function handleBackup(req, res) {
     } catch (err) {
       return send(res, 400, { error: err.message })
     }
-  }
-
-  // Manual "Back up now".
-  if (req.method === 'POST' && url === '/run') {
-    try {
-      const next = await performBackup(await readBackupState())
-      return send(res, 200, { ok: true, ...(await backupStatus()), lastBackupName: next.lastBackupName })
-    } catch (err) {
-      return send(res, 400, { error: err.message })
-    }
-  }
-
-  // Weekly auto-check, called when the app is opened. Runs silently only if a
-  // folder is set, a week has passed, AND something changed since last backup.
-  if (req.method === 'POST' && url === '/auto') {
-    const status = await backupStatus()
-    if (status.configured && status.weekElapsed && status.changed) {
-      try {
-        await performBackup(await readBackupState())
-        return send(res, 200, { ran: true, ...(await backupStatus()) })
-      } catch (err) {
-        return send(res, 200, { ran: false, error: err.message, ...status })
-      }
-    }
-    return send(res, 200, { ran: false, ...status })
   }
 
   send(res, 404, { error: 'Unknown route' })

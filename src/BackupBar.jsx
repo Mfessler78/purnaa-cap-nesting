@@ -1,21 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getBackupStatus, setBackupPath, runBackup, autoBackup, browseBackupFolder } from './lib/api'
+import { getBackupStatus, setBackupPath, browseBackupFolder } from './lib/api'
 
-function fmtWhen(iso) {
-  if (!iso) return null
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
-
-// Always-visible bar: shows when styles were last backed up, lets anyone back
-// up now, and lets the host set the backup folder. On open it runs the weekly
-// auto-check (silent unless a backup is actually due). Other parts of the app
-// fire a 'capnest-backup' window event after backing up so this refreshes.
+// Always-visible bar for the shared SYNC FOLDER (the P-drive folder holding
+// events/current/backups). The host points this at the office sync folder once;
+// from then on every style save/delete is shared to it automatically and other
+// machines pick changes up with "Retrieve New Styles from P Drive". There is no
+// manual "back up now" — recovery copies are kept inside the folder's own
+// backups/ — so nothing piles up here.
 export default function BackupBar() {
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -30,36 +21,8 @@ export default function BackupBar() {
   }
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const r = await autoBackup()
-        if (alive && r && r.ran) setMsg('Weekly backup saved automatically.')
-      } catch {}
-      if (alive) refresh()
-    })()
-    const onEvent = () => refresh()
-    window.addEventListener('capnest-backup', onEvent)
-    return () => {
-      alive = false
-      window.removeEventListener('capnest-backup', onEvent)
-    }
+    refresh()
   }, [])
-
-  async function onBackupNow() {
-    setBusy(true)
-    setMsg('Backing up…')
-    try {
-      const r = await runBackup()
-      setStatus(r)
-      setMsg(`Backed up to ${r.lastBackupName}.`)
-      window.dispatchEvent(new Event('capnest-backup'))
-    } catch (err) {
-      setMsg(err.message || 'Backup failed.')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function onSavePath() {
     setBusy(true)
@@ -68,7 +31,7 @@ export default function BackupBar() {
       const s = await setBackupPath(pathInput.trim())
       setStatus(s)
       setEditing(false)
-      setMsg('Backup folder set.')
+      setMsg('Sync folder set.')
     } catch (err) {
       setMsg(err.message || 'Could not set folder.')
     } finally {
@@ -90,7 +53,7 @@ export default function BackupBar() {
       const s = await setBackupPath(r.path)
       setStatus(s)
       setEditing(false)
-      setMsg('Backup folder set.')
+      setMsg('Sync folder set.')
     } catch (err) {
       setMsg(err.message || 'Could not open a folder window.')
     } finally {
@@ -99,23 +62,19 @@ export default function BackupBar() {
   }
 
   if (!status) return null
-  const last = fmtWhen(status.lastBackupAt)
 
   return (
     <footer className="backup-bar">
-      <span className={last ? 'backup-when' : 'backup-when warn'}>
-        {last ? `Last backed up: ${last}` : 'Never backed up'}
+      <span className={status.configured ? 'backup-when' : 'backup-when warn'}>
+        {status.configured ? 'Styles are shared automatically to the sync folder.' : 'Sync folder not set — styles are only on this computer.'}
       </span>
-      <button onClick={onBackupNow} disabled={busy}>
-        Back up now
-      </button>
       <span className="backup-folder">
         {editing ? (
           <>
             <input
               value={pathInput}
               onChange={(e) => setPathInput(e.target.value)}
-              placeholder="e.g. P:\CapNestBackups"
+              placeholder="e.g. P:\zPurnaa-Cap-Nesting-Sync"
               size={28}
             />
             <button onClick={onBrowse} disabled={busy} title="Opens a folder window on the host computer's screen">
@@ -130,7 +89,7 @@ export default function BackupBar() {
           </>
         ) : (
           <>
-            Backup folder:{' '}
+            Sync folder:{' '}
             {status.path ? <code>{status.path}</code> : <span className="warn">not set</span>}
             <button
               className="link"

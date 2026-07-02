@@ -50,7 +50,9 @@ export async function getHostLink() {
   return res.json()
 }
 
-// ---- Backup ---------------------------------------------------------------
+// ---- Sync folder (P-drive) -------------------------------------------------
+// Reads/sets the shared sync folder. { path, configured }. Style saves publish
+// there automatically; there is no manual backup call anymore.
 export async function getBackupStatus() {
   const res = await fetch('/api/backup')
   if (!res.ok) throw new Error('Could not read backup status')
@@ -74,20 +76,6 @@ export async function browseBackupFolder() {
   const json = await res.json()
   if (!res.ok) throw new Error(json.error || 'Could not open a folder window')
   return json
-}
-
-export async function runBackup() {
-  const res = await fetch('/api/backup/run', { method: 'POST' })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.error || 'Backup failed')
-  return json
-}
-
-export async function autoBackup() {
-  // Weekly auto-check on app open; runs silently server-side only if due.
-  const res = await fetch('/api/backup/auto', { method: 'POST' })
-  if (!res.ok) return { ran: false }
-  return res.json()
 }
 
 export async function listFabrics() {
