@@ -2,6 +2,14 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- chore(launchers,win): pin a minimum Node major version (`MIN_NODE=18`) so every
+  computer runs the same modern Node. `install.bat`/`update.bat` now upgrade an
+  older pre-existing Node to LTS via winget (previously winget only ran when Node
+  was entirely absent, leaving stale versions in place); `start.bat` refuses on
+  too-old Node with a pointer to install. Note: the committed `node/` runtime is a
+  Mac arm64 build, so Windows standardization must go through winget, not a bundled
+  binary.
+
 - fix(retrieve): query the running app with Node's built-in `node:http` instead
   of global `fetch`. `fetch` needs Node 18+, and the Windows launcher can run an
   older pre-existing system Node (winget only installs Node when none is present),

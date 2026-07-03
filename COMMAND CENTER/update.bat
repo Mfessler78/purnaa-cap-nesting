@@ -23,6 +23,18 @@ if not exist "%APP_DIR%\.git" (
   goto :fail
 )
 
+REM --- Keep Node standardized: if this machine is on an older Node than the
+REM     pinned minimum, upgrade it to LTS here so every computer matches.
+REM     Keep MIN_NODE in sync with install.bat / start.bat. ---
+set "MIN_NODE=18"
+set "NODE_MAJOR=0"
+for /f "tokens=1 delims=v." %%v in ('node -v 2^>nul') do set "NODE_MAJOR=%%v"
+if %NODE_MAJOR% LSS %MIN_NODE% (
+  echo Updating Node to the required version ^(LTS^) ...
+  winget install --id OpenJS.NodeJS.LTS -e --source winget --accept-package-agreements --accept-source-agreements
+  goto :reopen
+)
+
 pushd "%APP_DIR%"
 
 echo.
@@ -58,6 +70,21 @@ echo   UPDATE COMPLETE
 echo ============================================================
 echo.
 echo Start the app as usual by double-clicking start.bat
+echo.
+pause
+exit /b 0
+
+:reopen
+echo.
+echo ------------------------------------------------------------
+echo   ALMOST THERE - ONE MORE STEP
+echo ------------------------------------------------------------
+echo.
+echo Node was just installed/updated. Windows needs you to close
+echo this window and run UPDATE again so it can see the new version.
+echo.
+echo   1. Close this window.
+echo   2. Double-click update.bat again.
 echo.
 pause
 exit /b 0

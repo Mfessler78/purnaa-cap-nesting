@@ -26,6 +26,19 @@ if not exist "%APP_DIR%\.git" (
   goto :fail
 )
 
+REM --- Refuse to start on a Node older than the pinned minimum, so every
+REM     computer runs the same modern Node. install.bat / update.bat do the
+REM     actual upgrade; here we just stop with a clear pointer. Keep MIN_NODE
+REM     in sync with those. ---
+set "MIN_NODE=18"
+set "NODE_MAJOR=0"
+for /f "tokens=1 delims=v." %%v in ('node -v 2^>nul') do set "NODE_MAJOR=%%v"
+if %NODE_MAJOR% LSS %MIN_NODE% (
+  echo [PROBLEM] This computer's Node is too old ^(need %MIN_NODE% or newer^).
+  echo Please double-click install.bat to update it, then start again.
+  goto :fail
+)
+
 pushd "%APP_DIR%"
 
 echo.

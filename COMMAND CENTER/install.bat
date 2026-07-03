@@ -44,20 +44,24 @@ if errorlevel 1 (
   echo Git is already installed.
 )
 
-REM --- Install Node LTS if it is not already there ---
-where node >nul 2>&1
-if errorlevel 1 (
-  echo Installing Node LTS ...
+REM --- Ensure Node is present AND recent enough. We pin a MINIMUM major version
+REM     (see MIN_NODE) so every computer runs the same modern Node: a machine with
+REM     no Node OR an older pre-existing Node both get installed/upgraded to LTS
+REM     here rather than left behind. Keep MIN_NODE in sync with start.bat. ---
+set "MIN_NODE=18"
+set "NODE_MAJOR=0"
+for /f "tokens=1 delims=v." %%v in ('node -v 2^>nul') do set "NODE_MAJOR=%%v"
+if %NODE_MAJOR% LSS %MIN_NODE% (
+  echo Installing/updating Node to the required version ^(LTS^) ...
   winget install --id OpenJS.NodeJS.LTS -e --source winget --accept-package-agreements --accept-source-agreements
+  goto :reopen
 ) else (
-  echo Node is already installed.
+  echo Node major version %NODE_MAJOR% is OK.
 )
 
-REM --- Re-check. Right after a fresh install Windows has not refreshed PATH
-REM     in THIS window, so node/git will look missing until a new window. ---
+REM --- Re-check git. Right after a fresh install Windows has not refreshed PATH
+REM     in THIS window, so git will look missing until a new window. ---
 where git >nul 2>&1
-if errorlevel 1 goto :reopen
-where node >nul 2>&1
 if errorlevel 1 goto :reopen
 
 REM --- Get the code (clone first time, pull after) ---
