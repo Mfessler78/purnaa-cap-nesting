@@ -9,7 +9,7 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-02. Update the date when you change this file.
+> Last updated: 2026-07-03. Update the date when you change this file.
 
 ---
 
@@ -195,7 +195,11 @@ each other), `current/` (the live style folders, the only sync source), and `bac
 add/update/delete). Saving or deleting a style (`server/styles-api.js`) publishes it to
 `current/` and appends the event **last** (crash-safe); the retrieve launchers
 (`scripts/pdrive-retrieve.js`) replay + reconcile the local machine to that set —
-add/update/skip-unchanged/delete-with-recoverable-warning. All one Node implementation
+add/update/skip-unchanged/delete-with-recoverable-warning. Retrieve gets the sync-root
+path from the **running app** (`GET localhost:4173/api/backup`) and only falls back to
+this copy's `data/backup.json` when the app isn't running — so the folder the operator
+set in the browser is authoritative even if the launcher lives in a different app copy
+(each copy keeps its own host-local, git-ignored `backup.json`). All one Node implementation
 (`pdriveSync.js`) so Mac and Windows behave identically. Content identity is a `sha256`
 over the sorted `relPath+bytes` of a style folder, so unchanged styles are skipped. This
 is LAN file sync on the existing P-drive channel — **no cloud, no service** (invariant §10

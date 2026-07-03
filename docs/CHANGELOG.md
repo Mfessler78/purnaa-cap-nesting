@@ -2,6 +2,15 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(retrieve): Retrieve now reads the sync folder from the RUNNING app
+  (`GET localhost:4173/api/backup`), falling back to this copy's
+  `data/backup.json` only when the app isn't running. Fixes the Windows "no backup
+  folder set" report: the launcher and the app were reading different app copies'
+  host-local, git-ignored backup.json. Now the folder the operator set in the
+  browser is authoritative regardless of which copy the launcher lives in. The
+  progress log prints the source; the not-set error tips the operator to start the
+  app first. No new dependency (Node built-in fetch).
+
 - refactor(sync,stage4.5): retire the full-snapshot backup; no more clutter in the
   sync folder. With saves auto-publishing (Stage 4) and per-version/-deletion
   recovery copies parked under the root's own `backups/`, the old "Back up now" +
