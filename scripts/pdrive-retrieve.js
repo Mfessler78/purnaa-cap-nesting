@@ -10,6 +10,7 @@
 // only falls back to this copy's data/backup.json — see resolveSyncRoot below.
 // DATA only; never touches program code. Prints a per-line progress log here.
 import fs from 'node:fs'
+import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getComputerId, reconcile } from '../src/lib/pdriveSync.js'
@@ -28,6 +29,47 @@ function readLocalBackupPath() {
   }
 }
 
+// Ask the RUNNING app for the sync folder over plain HTTP. We use node:http
+// (present in every Node version) rather than global fetch, which needs Node 18+
+// — the launcher may run an older system Node, on which fetch is undefined and
+// the query would silently fail. Resolves to the path string, or '' with the
+// reason recorded in appQuery.reason for the diagnostics below.
+const appQuery = { reason: '' }
+function queryAppSyncPath() {
+  return new Promise((resolve) => {
+    const req = http.get(
+      { host: '127.0.0.1', port: PORT, path: '/api/backup', timeout: 2500 },
+      (res) => {
+        if (res.statusCode !== 200) {
+          appQuery.reason = `app returned HTTP ${res.statusCode}`
+          res.resume()
+          return resolve('')
+        }
+        let body = ''
+        res.setEncoding('utf8')
+        res.on('data', (c) => (body += c))
+        res.on('end', () => {
+          try {
+            resolve((JSON.parse(body).path || '').trim())
+          } catch {
+            appQuery.reason = 'app reply was not valid JSON'
+            resolve('')
+          }
+        })
+      },
+    )
+    req.on('timeout', () => {
+      appQuery.reason = `no reply from the app at 127.0.0.1:${PORT} (timed out)`
+      req.destroy()
+      resolve('')
+    })
+    req.on('error', (err) => {
+      appQuery.reason = `couldn't reach the app at 127.0.0.1:${PORT} (${err.code || err.message})`
+      resolve('')
+    })
+  })
+}
+
 // Resolve the sync folder, preferring the RUNNING app. The operator sets the
 // folder in the browser, which the server stores in ITS app copy's
 // data/backup.json. If this launcher lives in a different app copy (each keeps
@@ -37,17 +79,8 @@ function readLocalBackupPath() {
 // when the app isn't running. Santosh keeps the app window open while working,
 // so the server is normally up.
 async function resolveSyncRoot() {
-  try {
-    const res = await fetch(`http://127.0.0.1:${PORT}/api/backup`, {
-      signal: AbortSignal.timeout(2000),
-    })
-    if (res.ok) {
-      const p = ((await res.json()).path || '').trim()
-      if (p) return { root: p, from: 'the running app' }
-    }
-  } catch {
-    // App not running / unreachable — fall back to this copy's file below.
-  }
+  const fromApp = await queryAppSyncPath()
+  if (fromApp) return { root: fromApp, from: 'the running app' }
   return { root: readLocalBackupPath(), from: BACKUP_FILE }
 }
 
@@ -57,8 +90,15 @@ if (!root) {
   console.error('  No sync folder is set yet. Open the app and set the Backup folder')
   console.error('  (bottom bar) to the P-drive sync folder, then run this again.')
   console.error('')
-  console.error('  Tip: start the app first — this reads the folder straight from the')
-  console.error(`  running app. (Also checked this copy's file: ${BACKUP_FILE})`)
+  console.error('  Looked in two places:')
+  if (appQuery.reason) {
+    console.error(`   - running app: ${appQuery.reason}`)
+  } else {
+    console.error('   - running app: reachable, but no sync folder is set there')
+    console.error('     (the folder you typed may not have saved — set it again in the app)')
+  }
+  console.error(`   - this copy's file: ${BACKUP_FILE} (empty or missing)`)
+  console.error(`  (Node ${process.version})`)
   process.exit(1)
 }
 if (!fs.existsSync(root)) {

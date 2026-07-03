@@ -2,6 +2,15 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(retrieve): query the running app with Node's built-in `node:http` instead
+  of global `fetch`. `fetch` needs Node 18+, and the Windows launcher can run an
+  older pre-existing system Node (winget only installs Node when none is present),
+  on which `fetch` is undefined — so the app query silently failed and fell back
+  to the empty local file, reproducing the "no backup folder set" error even with
+  the app running. `node:http` works on every Node version. The not-set error now
+  prints why each source was empty (app unreachable / reachable-but-unset / file
+  path) and the Node version, so any remaining cause is visible in the window.
+
 - fix(retrieve): Retrieve now reads the sync folder from the RUNNING app
   (`GET localhost:4173/api/backup`), falling back to this copy's
   `data/backup.json` only when the app isn't running. Fixes the Windows "no backup
