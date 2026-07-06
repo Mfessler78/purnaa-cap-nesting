@@ -91,8 +91,9 @@ function iccName(bytes) {
   return null
 }
 
-// Classify one image's color space into { kind, class?, name? }:
-//   kind 'none'    → a Device* space, i.e. NO embedded profile
+// Classify one color space into { kind, class?, name?, device? }:
+//   kind 'none'    → a Device* space, i.e. NO profile of its own (carries
+//                    which device space, so a Default* remap can rescue it)
 //   kind 'icc'     → an ICCBased space (carries class + best-effort name)
 //   kind 'defined' → calibrated/Lab (defined, but not an ICC working space)
 //   kind 'unknown' → anything we can't read; we stay silent on these
@@ -100,7 +101,9 @@ function classifyColorSpace(cs, depth = 0) {
   if (depth > 8 || !cs) return { kind: 'unknown' }
   if (cs instanceof PDFName) {
     const n = cs.toString()
-    if (n === '/DeviceRGB' || n === '/DeviceCMYK' || n === '/DeviceGray') return { kind: 'none' }
+    if (n === '/DeviceRGB') return { kind: 'none', device: 'rgb' }
+    if (n === '/DeviceCMYK') return { kind: 'none', device: 'cmyk' }
+    if (n === '/DeviceGray') return { kind: 'none', device: 'gray' }
     return { kind: 'unknown' }
   }
   if (cs instanceof PDFArray) {
@@ -123,11 +126,32 @@ function classifyColorSpace(cs, depth = 0) {
 
 // Walk page-1 resources (recursing into Form XObjects, which is where
 // Illustrator/Photoshop wrap placed images) and classify every image XObject.
-function collectImages(doc, page) {
+//
+// Crucially, each resource dictionary's /ColorSpace subdictionary is read
+// first: a /DefaultRGB (/DefaultCMYK, /DefaultGray) entry there remaps ALL
+// Device* content in that scope into the given space (PDF 32000 §8.6.5.6) —
+// this is exactly how Illustrator embeds the working profile while the images
+// themselves say /DeviceRGB. Ignoring it was why profiled files read as
+// "no profile". Any ICC space found in those dictionaries is also collected
+// as page-level profile evidence (vector-only artwork carries it there).
+function collectColorInfo(doc, page) {
   const images = []
+  const spaces = []
   const seen = new Set()
-  function walk(resources, depth) {
+  function walk(resources, defaults, depth) {
     if (!resources || depth > 12) return
+    const csDict = resources.lookup(PDFName.of('ColorSpace'))
+    if (csDict && csDict.entries) {
+      for (const [name] of csDict.entries()) {
+        const c = classifyColorSpace(csDict.lookup(name))
+        if (c.kind !== 'icc' && c.kind !== 'defined') continue
+        spaces.push(c)
+        const n = name.toString()
+        if (n === '/DefaultRGB') defaults = { ...defaults, rgb: c }
+        else if (n === '/DefaultCMYK') defaults = { ...defaults, cmyk: c }
+        else if (n === '/DefaultGray') defaults = { ...defaults, gray: c }
+      }
+    }
     const xobjects = resources.lookup(PDFName.of('XObject'))
     if (!xobjects || !xobjects.entries) return
     for (const [name] of xobjects.entries()) {
@@ -140,14 +164,38 @@ function collectImages(doc, page) {
       const subtype = stream.dict.lookup(PDFName.of('Subtype'))
       const sub = subtype ? subtype.toString() : ''
       if (sub === '/Image') {
-        images.push(classifyColorSpace(stream.dict.lookup(PDFName.of('ColorSpace'))))
+        let c = classifyColorSpace(stream.dict.lookup(PDFName.of('ColorSpace')))
+        if (c.kind === 'none' && defaults[c.device]) c = defaults[c.device]
+        images.push(c)
       } else if (sub === '/Form') {
-        walk(stream.dict.lookup(PDFName.of('Resources')), depth + 1)
+        walk(stream.dict.lookup(PDFName.of('Resources')), defaults, depth + 1)
       }
     }
   }
-  walk(page.node.Resources(), 0)
-  return images
+  walk(page.node.Resources(), {}, 0)
+  return { images, spaces }
+}
+
+// A document OutputIntent's ICC profile (how PDF/X exports embed the intended
+// output space). Treated as profile evidence for Device* content the same way
+// a RIP honouring the intent would.
+function outputIntentProfile(doc) {
+  try {
+    const intents = doc.catalog.lookup(PDFName.of('OutputIntents'))
+    if (!(intents instanceof PDFArray)) return null
+    for (let i = 0; i < intents.size(); i++) {
+      const intent = intents.lookup(i)
+      if (!intent || !intent.lookup) continue
+      const dest = intent.lookup(PDFName.of('DestOutputProfile'))
+      if (dest instanceof PDFRawStream) {
+        const bytes = streamBytes(dest)
+        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes) }
+      }
+    }
+  } catch {
+    return null
+  }
+  return null
 }
 
 const FIX_PROFILE =
@@ -167,23 +215,41 @@ function unsuitableLabel(img) {
   return 'a non-sRGB RGB color profile'
 }
 
+// Positive confirmation line for a present profile, naming it exactly.
+function confirmLine(img) {
+  if (img.name) return `Color profile confirmed: “${img.name}” is embedded`
+  if (img.kind === 'defined') return 'Color profile confirmed: a calibrated color space is defined (no ICC profile name)'
+  const cls = { rgb: 'an RGB', cmyk: 'a CMYK', gray: 'a grayscale' }[img.class] || 'an'
+  return `Color profile confirmed: ${cls} ICC profile is embedded (profile name unreadable)`
+}
+
 // Detect-only color-profile + flatten advisory. Returns warning strings (the
-// shape RunScreen already renders) plus diagnostics for tests. Never throws on
-// unreadable artwork — it returns no warnings so the visual preview and the
-// region check stay the backstops.
+// shape RunScreen already renders), a positive `confirmation` line when a
+// usable profile IS present (naming the exact profile), and diagnostics for
+// tests. Never throws on unreadable artwork — it returns no warnings so the
+// visual preview and the region check stay the backstops.
 export async function checkArtworkColor(artworkBytes) {
   const warnings = []
+  let confirmation = null
   let imageCount = 0
   let profile = 'unknown'
+  let profileName = null
   try {
     const doc = await PDFDocument.load(artworkBytes, { updateMetadata: false })
-    const images = collectImages(doc, doc.getPage(0))
+    const { images, spaces } = collectColorInfo(doc, doc.getPage(0))
+    const intent = outputIntentProfile(doc)
     imageCount = images.length
 
+    // Effective per-image profile: the image's own space → the resource-level
+    // Default* remap (applied in collectColorInfo) → the document OutputIntent.
+    const effective = intent ? images.map((i) => (i.kind === 'none' ? intent : i)) : images
+
     if (imageCount > 0) {
-      // Check A — color profile (one warning at most; worst case wins).
-      const anyMissing = images.some((i) => i.kind === 'none')
-      const unsuitable = images.find((i) => i.kind === 'icc' && !isSuitable(i))
+      // Check A — color profile (one warning OR one confirmation; worst case wins).
+      const anyMissing = effective.some((i) => i.kind === 'none')
+      const unsuitable = effective.find((i) => i.kind === 'icc' && !isSuitable(i))
+      const confirmed = effective.find((i) => i.kind === 'icc' && i.name) ||
+        effective.find((i) => i.kind === 'icc' || i.kind === 'defined')
       if (anyMissing) {
         profile = 'none'
         warnings.push(
@@ -192,12 +258,15 @@ export async function checkArtworkColor(artworkBytes) {
         )
       } else if (unsuitable) {
         profile = unsuitable.class || 'other'
+        profileName = unsuitable.name || null
         warnings.push(
           `This artwork’s embedded color profile is ${unsuitableLabel(unsuitable)}, which ` +
             `can shift colors when printed. To fix: ${FIX_PROFILE}`,
         )
-      } else if (images.some((i) => i.kind === 'icc')) {
-        profile = 'sRGB'
+      } else if (confirmed) {
+        profile = confirmed.kind === 'icc' ? 'sRGB' : 'defined'
+        profileName = confirmed.name || null
+        confirmation = `${confirmLine(confirmed)} — colors should print true.`
       }
 
       // Check B — flatten, inferred from image count.
@@ -209,9 +278,19 @@ export async function checkArtworkColor(artworkBytes) {
             'profile), then re-save and upload again. You can still proceed.',
         )
       }
+    } else {
+      // Vector-only artwork: confirm a profile carried by the resource
+      // color-space dictionaries or the OutputIntent; otherwise stay silent
+      // (unchanged behavior — the warning texts are image-specific).
+      const ev = (intent && intent.class ? intent : null) || spaces.find((s) => s.kind === 'icc')
+      if (ev) {
+        profile = ev.class || 'unknown'
+        profileName = ev.name || null
+        confirmation = `${confirmLine(ev)} — colors should print true.`
+      }
     }
   } catch {
-    return { warnings: [], imageCount: 0, profile: 'unknown' }
+    return { warnings: [], confirmation: null, imageCount: 0, profile: 'unknown', profileName: null }
   }
-  return { warnings, imageCount, profile }
+  return { warnings, confirmation, imageCount, profile, profileName }
 }

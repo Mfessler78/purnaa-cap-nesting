@@ -179,7 +179,7 @@ export default function RunScreen() {
       }
       const exportRes = res.errors ? null : await fillLayout({ ...common, guides: false })
 
-      const passed = []
+      const passed = colorCheck.confirmation ? [colorCheck.confirmation] : []
       const blocking = [...(res.errors || [])]
       const warnings = [...(res.warnings || []), ...colorCheck.warnings]
 

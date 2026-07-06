@@ -2,6 +2,12 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(verify): color-profile check now reads `/DefaultRGB` (`/DefaultCMYK`/`/DefaultGray`)
+  resource remaps and document OutputIntents — Illustrator embeds the profile that way, so
+  profiled artwork used to falsely warn "no embedded color profile". A present profile now
+  produces a positive confirmation naming the exact profile (e.g. “sRGB IEC61966-2.1”) in
+  the run report's passed list; a truly missing one still warns. New regression fixture
+  `tests/fixtures/artwork-devicergb-defaultrgb.pdf`.
 - fix(sync): remember the sync-root path per MACHINE (`~/.purnaa-tools/sync-root.json`,
   next to the computer-id) in addition to the per-app-copy `data/backup.json`. The
   server writes both on set and adopts the machine copy when its own file is empty;

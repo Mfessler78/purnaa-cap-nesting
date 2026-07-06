@@ -47,8 +47,12 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
         ▼
   VERIFY GATE (src/lib/verifyArtwork.js) — blocks export on missing/mismatched
         │                                   pieces or size mismatch; also emits
-        │                                   warn-only color-profile & flatten
-        │                                   advisories (read-only, never blocks)
+        │                                   color-profile advisory (confirms the
+        │                                   exact embedded profile, or warns if
+        │                                   none/unsuitable — incl. profiles in
+        │                                   /DefaultRGB resources & OutputIntents)
+        │                                   + flatten advisory (read-only, never
+        │                                   blocks)
         ▼
   EXPORT
    • Direct vector (default, RasterLink-proven)  ← preferred path
@@ -170,7 +174,7 @@ Use this to see the blast radius before editing.
 | Module | Owns | Depends on | Depended on by |
 |--------|------|------------|----------------|
 | `src/lib/engine.js` | The fill pipeline (place, rotate, clip, stamp, scale, multi-sheet) | `pdf-lib`, `pdfGeometry`, `pdfPaths` | `RunScreen.jsx` |
-| `src/lib/verifyArtwork.js` | Pre-export checks: region presence/size (blocking) + color-profile & flatten advisories (warn-only) | `pdf-lib`, `pdfRender`/`scanRegions` (lazy, DOM-only) | `RunScreen.jsx`, `engine.js` |
+| `src/lib/verifyArtwork.js` | Pre-export checks: region presence/size (blocking) + color-profile advisory (confirmation naming the exact profile, or warning; never blocks) & flatten advisory | `pdf-lib`, `pdfRender`/`scanRegions` (lazy, DOM-only) | `RunScreen.jsx`, `engine.js` |
 | `src/lib/pdfGeometry.js` | Box/transform/rotation math | — (leaf) | engine, verify, editors |
 | `src/lib/pdfPaths.js` | Vector path extraction from PDFs | `pdfjs-dist` | engine, detectRegions |
 | `src/lib/pdfRender.js` | Rasterize PDF pages for display | `pdfjs-dist` | `PdfViewer.jsx` |
