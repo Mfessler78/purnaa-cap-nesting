@@ -9,8 +9,8 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-06 (added `tileInspect.js` + `tileMath.js`, DXF Tile Export
-> stages 1–2). Update the date when you change this file.
+> Last updated: 2026-07-06 (added `tileInspect.js` + `tileMath.js` + `tileExport.js`,
+> DXF Tile Export stages 1–3). Update the date when you change this file.
 
 ---
 
@@ -116,6 +116,8 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │       ├── tileMath.js      #   DXF Tile Export (in progress): fabric width →
 │       │                    #   grid placements; Check B hard error (tile wider
 │       │                    #   than usable fabric); reuses dozen rounding
+│       ├── tileExport.js    #   DXF Tile Export (in progress): tile contours ×
+│       │                    #   placements → ONE deterministic DXF (buildDxf)
 │       ├── api.js           #   client → server middleware calls
 │       └── pdriveSync.js    #   P-drive style sync: computer-id, content hash,
 │                            #   append-only events, replay, seed, reconcile
@@ -190,6 +192,7 @@ Use this to see the blast radius before editing.
 | `src/lib/dxf.js` | DXF / laser geometry | `pdfGeometry` | engine / laser path |
 | `src/lib/tileInspect.js` | DXF Tile Export stage 1: tile (page) size in mm + Check A (5 mm edge-inset, warn-only) on Mila's pre-packed PDF tile | `pdf-lib`, `pdfPaths` | (tile flow UI, later stage) |
 | `src/lib/tileMath.js` | DXF Tile Export stage 2: pure grid math — 20 mm side margins, cols/rows, row-major placements; Check B hard error; dozen rounding via engine's `roundDownToSheet` | `engine.js` (`roundDownToSheet` only) | (tile flow UI, later stage) |
+| `src/lib/tileExport.js` | DXF Tile Export stage 3: tile contours (mm, tile-relative) duplicated by translation onto the placements → one byte-deterministic DXF | `dxf.js`, `engine.js` (`flattenSubpath` only) | (tile flow UI, later stage) |
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
 | `src/lib/pdriveSync.js` | P-drive style sync: computer-id, machine-level sync-root memory, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
 | `server/styles-api.js` | Persist styles/fabrics, optional gs flatten; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, Ghostscript (shell), `pdriveSync` | `api.js` |

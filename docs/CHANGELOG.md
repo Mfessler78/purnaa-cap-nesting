@@ -2,6 +2,12 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(tile): DXF Tile Export stage 3 — new `src/lib/tileExport.js`: the inspected
+  tile's contours (flattened with the engine's `flattenSubpath`, now exported; mm,
+  tile-relative via the page-box origin `inspectTile` now returns) duplicated by
+  translation only onto the stage-2 placements, written as ONE DXF through the existing
+  `buildDxf` (all geometry kept on the CUT layer, nothing stripped/recolored).
+  Byte-deterministic. Tests: `tests/tileExport.test.js`.
 - feat(tile): DXF Tile Export stage 2 — new `src/lib/tileMath.js`: pure, deterministic
   grid math. usableWidth = fabric − 20 mm per side (no length-axis border); Check B hard
   error when the tile is wider than the usable fabric (names both numbers); quantity =

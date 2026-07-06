@@ -26,6 +26,8 @@ const fmtMm = (mm) => `${(Math.round(mm * 10) / 10).toFixed(1)} mm`
 // Inspect a tile PDF. Returns:
 //   {
 //     widthMm, heightMm,   // tile (page) size in mm
+//     origin,              // { x, y } page-box origin in PDF points — outline
+//                          //   coords are page-space, so tiling subtracts this
 //     outlines,            // extractOutlines result, page points (for tiling)
 //     warnings: [String],  // run-screen-style warn-only lines (Check A)
 //   }
@@ -34,6 +36,7 @@ export async function inspectTile(tileBytes) {
   const mb = doc.getPage(0).getMediaBox()
   const widthMm = toMm(mb.width)
   const heightMm = toMm(mb.height)
+  const origin = { x: mb.x, y: mb.y }
 
   const outlines = await extractOutlines(tileBytes)
   const warnings = []
@@ -43,7 +46,7 @@ export async function inspectTile(tileBytes) {
       'No vector path geometry was found in this tile PDF — there would be nothing ' +
         'for the laser to cut. Check the file with Mila. You can still proceed.',
     )
-    return { widthMm, heightMm, outlines, warnings }
+    return { widthMm, heightMm, origin, outlines, warnings }
   }
 
   // Clearance from the geometry's overall extent to each page edge. Curve
@@ -80,5 +83,5 @@ export async function inspectTile(tileBytes) {
     )
   }
 
-  return { widthMm, heightMm, outlines, warnings }
+  return { widthMm, heightMm, origin, outlines, warnings }
 }
