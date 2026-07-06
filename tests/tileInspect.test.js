@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { PDFDocument, rgb } from 'pdf-lib'
 import { inspectTile } from '../src/lib/tileInspect.js'
 
-// Fixtures are built in-memory with pdf-lib (like a tile Mila would export):
+// Fixtures are built in-memory with pdf-lib (like an exported packed tile):
 // a page of a known mm size with a stroked rectangle standing in for the
 // packed pieces' cut lines.
 

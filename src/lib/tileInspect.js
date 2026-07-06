@@ -1,13 +1,14 @@
 import { PDFDocument } from 'pdf-lib'
 import { extractOutlines } from './pdfPaths.js'
 
-// DXF Tile Export, stage 1: inspect Mila's pre-packed PDF tile before tiling.
+// DXF Tile Export, stage 1: inspect the uploaded pre-packed PDF tile before
+// tiling.
 //
 // The TILE is the PDF page itself (MediaBox): when tiles are repeated across
 // the fabric they abut page-box to page-box, so the page edges are the tile
-// edges. Mila keeps all cut geometry at least EDGE_INSET_MM inside the page on
-// every side; two abutting insets give the intended 10 mm gap between pieces
-// of neighbouring tiles. This module measures that clearance and WARNS (never
+// edges. Whoever packs the tile keeps all cut geometry at least EDGE_INSET_MM
+// inside the page on every side; two abutting insets give the intended 10 mm
+// gap between pieces of neighbouring tiles. This module measures that clearance and WARNS (never
 // blocks, never edits) when geometry sits closer to an edge — the human
 // decides. Read-only: the tile's vectors, including its black cut lines, are
 // untouched (invariant §7).
@@ -44,7 +45,7 @@ export async function inspectTile(tileBytes) {
   if (outlines.length === 0) {
     warnings.push(
       'No vector path geometry was found in this tile PDF — there would be nothing ' +
-        'for the laser to cut. Check the file with Mila. You can still proceed.',
+        'for the laser to cut. Check the file with whoever packed it. You can still proceed.',
     )
     return { widthMm, heightMm, origin, outlines, warnings }
   }

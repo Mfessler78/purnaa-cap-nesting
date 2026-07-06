@@ -8,7 +8,7 @@ test('computeTiling lays a row-major grid inside the side margins', () => {
   assert.deepEqual(res.warnings, [])
   assert.equal(res.usableWidthMm, 1560) // 1600 - 20 each side
   assert.equal(res.colsPerRow, 5) // floor(1560 / 300)
-  assert.equal(res.roundedQty, 24)
+  assert.equal(res.quantity, 24)
   assert.equal(res.rows, 5) // ceil(24 / 5), last row partial
   assert.equal(res.lengthMm, 1000)
   assert.equal(res.placements.length, 24)
@@ -36,27 +36,25 @@ test('computeTiling fits exactly one column when usable width equals tile width'
   assert.equal(res.rows, 12)
 })
 
-test('computeTiling rounds quantity down to whole dozens and warns on the remainder', () => {
-  const res = computeTiling({ fabricWidthMm: 1600, quantity: 27, tileWidthMm: 300, tileHeightMm: 200 })
-  assert.deepEqual(res.errors, [])
-  assert.equal(res.roundedQty, 24)
-  assert.equal(res.remainder, 3)
-  assert.equal(res.placements.length, 24)
-  assert.equal(res.warnings.length, 1)
-  assert.match(res.warnings[0], /24 of 27/)
-  assert.match(res.warnings[0], /remaining 3/)
-})
-
-test('computeTiling blocks an order under one dozen', () => {
-  const res = computeTiling({ fabricWidthMm: 1600, quantity: 7, tileWidthMm: 300, tileHeightMm: 200 })
-  assert.equal(res.errors.length, 1)
-  assert.match(res.errors[0], /under one dozen/)
-  assert.equal(res.placements.length, 0)
+test('computeTiling accepts any whole quantity — no per-dozen rounding', () => {
+  // There is no pre-nest sheet in this flow, so 27, 7, and 1 all lay out as-is.
+  for (const [qty, rows] of [[27, 6], [7, 2], [1, 1]]) {
+    const res = computeTiling({ fabricWidthMm: 1600, quantity: qty, tileWidthMm: 300, tileHeightMm: 200 })
+    assert.deepEqual(res.errors, [], `qty ${qty}`)
+    assert.deepEqual(res.warnings, [], `qty ${qty}`)
+    assert.equal(res.quantity, qty)
+    assert.equal(res.placements.length, qty)
+    assert.equal(res.rows, rows) // ceil(qty / 5)
+  }
 })
 
 test('computeTiling rejects bad inputs plainly', () => {
   assert.match(
     computeTiling({ fabricWidthMm: 1600, quantity: 2.5, tileWidthMm: 300, tileHeightMm: 200 }).errors[0],
+    /whole number/,
+  )
+  assert.match(
+    computeTiling({ fabricWidthMm: 1600, quantity: 0, tileWidthMm: 300, tileHeightMm: 200 }).errors[0],
     /whole number/,
   )
   assert.match(

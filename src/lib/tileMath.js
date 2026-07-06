@@ -1,5 +1,3 @@
-import { roundDownToSheet } from './engine.js'
-
 // DXF Tile Export, stage 2: fabric width + deterministic grid math.
 //
 // The tile (from tileInspect.js: the PDF page box) is repeated across the
@@ -9,23 +7,22 @@ import { roundDownToSheet } from './engine.js'
 // edge inset inside each tile (Check A) is what provides the 10 mm gap
 // between pieces of neighbouring tiles.
 //
-// Quantity counts TILES and reuses the engine's whole-dozen rounding
-// (roundDownToSheet, round DOWN, warn on the remainder) so both flows treat
-// order quantities the same way. No auto-nesting, no collision detection —
-// deterministic grid of the bounding box only.
+// Quantity counts TILES and can be any whole number of 1 or more — there is
+// no pre-nest sheet in this flow, so no per-sheet rounding applies. No
+// auto-nesting, no collision detection — deterministic grid of the bounding
+// box only.
 
 const SIDE_MARGIN_MM = 20
-const TILES_PER_DOZEN = 12
 
 const fmt = (mm) => `${(Math.round(mm * 10) / 10).toFixed(1)} mm`
 
 // Pure + deterministic. Returns:
 //   {
 //     errors: [String],    // hard blocks (Check B, bad inputs) — no placements
-//     warnings: [String],  // e.g. dozen-rounding remainder
-//     usableWidthMm, colsPerRow, roundedQty, remainder, rows,
+//     warnings: [String],
+//     usableWidthMm, colsPerRow, quantity, rows,
 //     lengthMm,            // roll length used = rows * tileHeightMm
-//     placements: [{ xMm, yMm, col, row }],  // roundedQty entries, row-major;
+//     placements: [{ xMm, yMm, col, row }],  // quantity entries, row-major;
 //   }                      //   x/y = the tile page box's bottom-left corner
 export function computeTiling({ fabricWidthMm, quantity, tileWidthMm, tileHeightMm }) {
   const errors = []
@@ -55,31 +52,15 @@ export function computeTiling({ fabricWidthMm, quantity, tileWidthMm, tileHeight
     errors.push(
       `The tile is wider than the usable fabric: the tile is ${fmt(tileW)} wide, but ` +
         `${fmt(fabricW)} fabric leaves only ${fmt(usableWidthMm)} usable after the ` +
-        `${SIDE_MARGIN_MM} mm margin on each side. Use wider fabric or have Mila repack ` +
-        'a narrower tile.',
+        `${SIDE_MARGIN_MM} mm margin on each side. Use wider fabric or repack a ` +
+        'narrower tile.',
     )
     return { errors, warnings, usableWidthMm, colsPerRow, placements: [] }
   }
 
-  const roundedQty = roundDownToSheet(qty, TILES_PER_DOZEN)
-  const remainder = qty - roundedQty
-  if (roundedQty === 0) {
-    errors.push(
-      `Order is under one dozen (${TILES_PER_DOZEN}): a quantity of ${qty} rounds down ` +
-        'to 0 tiles — nothing to lay out.',
-    )
-    return { errors, warnings, usableWidthMm, colsPerRow, placements: [] }
-  }
-  if (remainder > 0) {
-    warnings.push(
-      `Quantity rounds down to whole dozens: this layout covers ${roundedQty} of ${qty}. ` +
-        `The remaining ${remainder} must be produced separately.`,
-    )
-  }
-
-  const rows = Math.ceil(roundedQty / colsPerRow)
+  const rows = Math.ceil(qty / colsPerRow)
   const placements = []
-  for (let i = 0; i < roundedQty; i++) {
+  for (let i = 0; i < qty; i++) {
     const row = Math.floor(i / colsPerRow)
     const col = i % colsPerRow
     placements.push({
@@ -95,8 +76,7 @@ export function computeTiling({ fabricWidthMm, quantity, tileWidthMm, tileHeight
     warnings,
     usableWidthMm,
     colsPerRow,
-    roundedQty,
-    remainder,
+    quantity: qty,
     rows,
     lengthMm: rows * tileH,
     placements,

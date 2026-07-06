@@ -70,14 +70,15 @@ end. Everything else is 1:1.
 **Second flow — DXF Tile Export ("DXF only" jobs, no printing).** The Run Screen tab now
 opens with one question — *"Does this job include printed artwork?"* (`RunEntry.jsx`).
 **With artwork** mounts the unchanged `RunScreen.jsx` pipeline above; **DXF only** mounts
-`TileExportScreen.jsx`: Mila's pre-packed PDF tile (pieces already arranged and spaced) →
+`TileExportScreen.jsx`: a pre-packed PDF tile (pieces already arranged and spaced) →
 `tileInspect.js` (tile = the page box; size in mm + Check A: warn if geometry sits within
 5 mm of a tile edge — two abutting insets give the 10 mm inter-tile gap) → operator enters
 fabric width (mm) + quantity → `tileMath.js` (usable = fabric − 20 mm per side, length
-axis borderless; Check B **hard error** if the tile is wider than usable; quantity = tiles,
-rounded DOWN to whole dozens via the engine's `roundDownToSheet`, warn on remainder) →
+axis borderless; Check B **hard error** if the tile is wider than usable; quantity =
+tiles, **any whole number ≥ 1** — no pre-nest sheet, so no per-sheet rounding) →
 `tileExport.js` duplicates the tile's contours by **translation only** onto the row-major
-grid and writes ONE byte-deterministic DXF through the existing `buildDxf`. No
+grid and writes ONE byte-deterministic DXF through the existing `buildDxf`; the screen's
+canvas preview draws that exact layout (contours × placements + margin guides). No
 auto-nesting, no collision detection, nothing stripped or recolored. Switching branches
 via the "Change" control unmounts the branch — a clean reset; the branches share no state.
 
@@ -111,7 +112,7 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │   ├── RunEntry.jsx         # Run-tab entry fork: "With artwork" → RunScreen,
 │   │                        #   "DXF only" → TileExportScreen (clean reset on Change)
 │   ├── RunScreen.jsx        # Santosh's screen: pick style/fabric/qty, upload, preview, export
-│   ├── TileExportScreen.jsx # DXF-only flow: upload Mila's tile PDF → checks →
+│   ├── TileExportScreen.jsx # DXF-only flow: upload pre-packed tile PDF → checks →
 │   │                        #   fabric width + qty → export ONE tiled laser DXF
 │   ├── MappingTool.jsx      # Mila's screen: label slots (piece_type + instance + rotation)
 │   ├── FabricsScreen.jsx    # edit the fabric stretch table
@@ -129,14 +130,14 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │       ├── detectRegions.js #   auto-detect closed paths as candidate slots (M6)
 │       ├── scanRegions.js   #   region scanning support for auto-detect
 │       ├── dxf.js           #   DXF-related handling (laser path / geometry)
-│       ├── tileInspect.js   #   DXF Tile Export (in progress): inspect Mila's
-│       │                    #   pre-packed PDF tile — size in mm + 5 mm edge-
-│       │                    #   inset warning (Check A, warn-only)
-│       ├── tileMath.js      #   DXF Tile Export (in progress): fabric width →
-│       │                    #   grid placements; Check B hard error (tile wider
-│       │                    #   than usable fabric); reuses dozen rounding
-│       ├── tileExport.js    #   DXF Tile Export (in progress): tile contours ×
-│       │                    #   placements → ONE deterministic DXF (buildDxf)
+│       ├── tileInspect.js   #   DXF Tile Export: inspect the pre-packed PDF
+│       │                    #   tile — size in mm + 5 mm edge-inset warning
+│       │                    #   (Check A, warn-only)
+│       ├── tileMath.js      #   DXF Tile Export: fabric width → grid placements;
+│       │                    #   Check B hard error (tile wider than usable
+│       │                    #   fabric); any whole quantity ≥ 1
+│       ├── tileExport.js    #   DXF Tile Export: tile contours × placements →
+│       │                    #   ONE deterministic DXF (buildDxf)
 │       ├── api.js           #   client → server middleware calls
 │       └── pdriveSync.js    #   P-drive style sync: computer-id, content hash,
 │                            #   append-only events, replay, seed, reconcile
@@ -209,11 +210,11 @@ Use this to see the blast radius before editing.
 | `src/lib/detectRegions.js` | Auto-detect closed-path slots | `pdfPaths`, `scanRegions` | `MappingTool.jsx` |
 | `src/lib/scanRegions.js` | Region scan support | `pdfPaths` | `detectRegions` |
 | `src/lib/dxf.js` | DXF / laser geometry | `pdfGeometry` | engine / laser path |
-| `src/lib/tileInspect.js` | DXF Tile Export stage 1: tile (page) size in mm + Check A (5 mm edge-inset, warn-only) on Mila's pre-packed PDF tile | `pdf-lib`, `pdfPaths` | `TileExportScreen.jsx` |
-| `src/lib/tileMath.js` | DXF Tile Export stage 2: pure grid math — 20 mm side margins, cols/rows, row-major placements; Check B hard error; dozen rounding via engine's `roundDownToSheet` | `engine.js` (`roundDownToSheet` only) | `TileExportScreen.jsx` |
+| `src/lib/tileInspect.js` | DXF Tile Export stage 1: tile (page) size in mm + Check A (5 mm edge-inset, warn-only) on the pre-packed PDF tile | `pdf-lib`, `pdfPaths` | `TileExportScreen.jsx` |
+| `src/lib/tileMath.js` | DXF Tile Export stage 2: pure grid math — 20 mm side margins, cols/rows, row-major placements; Check B hard error; any whole quantity ≥ 1 | — (leaf) | `TileExportScreen.jsx` |
 | `src/lib/tileExport.js` | DXF Tile Export stage 3: tile contours (mm, tile-relative) duplicated by translation onto the placements → one byte-deterministic DXF | `dxf.js`, `engine.js` (`flattenSubpath` only) | `TileExportScreen.jsx` |
 | `src/RunEntry.jsx` | Run-tab fork: mounts RunScreen or TileExportScreen; "Change" unmounts (clean reset, no shared state) | `RunScreen.jsx`, `TileExportScreen.jsx` | `App.jsx` |
-| `src/TileExportScreen.jsx` | DXF-only screen: upload tile → Check A → width/qty → Check B + dozens → export DXF (RunScreen's visual language/classes) | `tileInspect`, `tileMath`, `tileExport`, `pdfRender`, `PdfViewer` | `RunEntry.jsx` |
+| `src/TileExportScreen.jsx` | DXF-only screen: upload tile → Check A → width/qty → Check B → canvas layout preview → export DXF (RunScreen's visual language/classes) | `tileInspect`, `tileMath`, `tileExport` | `RunEntry.jsx` |
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
 | `src/lib/pdriveSync.js` | P-drive style sync: computer-id, machine-level sync-root memory, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
 | `server/styles-api.js` | Persist styles/fabrics, optional gs flatten; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, Ghostscript (shell), `pdriveSync` | `api.js` |

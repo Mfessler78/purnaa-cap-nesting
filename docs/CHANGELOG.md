@@ -2,6 +2,13 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(tile): neutral wording + any quantity + real layout preview. All personal names
+  removed from program strings/comments (the app is instance-neutral). Quantity in the
+  DXF-only flow now accepts any whole number ≥ 1 — there is no pre-nest sheet to fill,
+  so the per-dozen rounding was removed (`tileMath.js` no longer imports from
+  `engine.js`; returns `quantity`, not `roundedQty`). The preview now draws the ACTUAL
+  computed layout on a canvas — the same contours × placements the DXF writes, with
+  fabric edges and 20 mm margin guides — instead of showing the uploaded tile once.
 - feat(tile): DXF Tile Export stage 4 — Run tab now opens with an entry fork
   (`src/RunEntry.jsx`): "With artwork" mounts the unchanged RunScreen; "DXF only" mounts
   the new `src/TileExportScreen.jsx` (upload Mila's tile PDF → Check A warnings → fabric

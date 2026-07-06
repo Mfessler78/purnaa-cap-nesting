@@ -24,7 +24,7 @@ export default function RunEntry() {
           </button>
           <button className="primary" onClick={() => setBranch('dxf')}>
             DXF only
-            <small>Repeat Mila’s pre-packed tile across the fabric → laser DXF, no printing</small>
+            <small>Repeat a pre-packed tile across the fabric → laser DXF, no printing</small>
           </button>
         </div>
       </div>

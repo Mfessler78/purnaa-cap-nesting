@@ -8,7 +8,7 @@ import { buildTiledDxf, tileContoursMm } from '../src/lib/tileExport.js'
 const MM_TO_PT = 72 / 25.4
 
 // A 100×80 mm tile with one stroked rectangle at (10,10)–(90,70) mm, standing
-// in for Mila's packed cut lines.
+// in for a packed tile's cut lines.
 async function tileBytes() {
   const doc = await PDFDocument.create()
   const page = doc.addPage([100 * MM_TO_PT, 80 * MM_TO_PT])
