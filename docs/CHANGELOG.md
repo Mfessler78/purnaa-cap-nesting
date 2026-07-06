@@ -2,6 +2,13 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(tile): DXF Tile Export stage 4 — Run tab now opens with an entry fork
+  (`src/RunEntry.jsx`): "With artwork" mounts the unchanged RunScreen; "DXF only" mounts
+  the new `src/TileExportScreen.jsx` (upload Mila's tile PDF → Check A warnings → fabric
+  width + quantity → Check B hard block + dozen-rounding warning → export ONE laser DXF).
+  Same verify-panel classes/approve-row placement as RunScreen; "Change" control unmounts
+  the branch = clean reset, no shared state. Small CSS additions (`entry-choice`,
+  `branch-bar`, `branch-wrap`) in `index.css`.
 - feat(tile): DXF Tile Export stage 3 — new `src/lib/tileExport.js`: the inspected
   tile's contours (flattened with the engine's `flattenSubpath`, now exported; mm,
   tile-relative via the page-box origin `inspectTile` now returns) duplicated by

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import MappingTool from './MappingTool.jsx'
-import RunScreen from './RunScreen.jsx'
+import RunEntry from './RunEntry.jsx'
 import FabricsScreen from './FabricsScreen.jsx'
 import BackupBar from './BackupBar.jsx'
 import { getHostLink } from './lib/api.js'
@@ -82,7 +82,7 @@ export default function App() {
       </header>
       <main className="app-main">
         {tab === 'mapping' && <MappingTool />}
-        {tab === 'run' && <RunScreen />}
+        {tab === 'run' && <RunEntry />}
         {tab === 'fabrics' && <FabricsScreen />}
       </main>
       <BackupBar />
