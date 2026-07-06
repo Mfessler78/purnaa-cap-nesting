@@ -6,14 +6,21 @@
 //
 // Called by the "Retrieve New Styles from P Drive" launchers (Mac .command /
 // Windows .bat) — one Node implementation, so both platforms behave identically.
-// The sync root comes from the RUNNING app first (GET localhost/api/backup) and
-// only falls back to this copy's data/backup.json — see resolveSyncRoot below.
+// The sync root comes from the RUNNING app first (GET localhost/api/backup),
+// then this copy's data/backup.json, then the machine-level copy in
+// ~/.purnaa-tools — see resolveSyncRoot below.
 // DATA only; never touches program code. Prints a per-line progress log here.
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { getComputerId, reconcile } from '../src/lib/pdriveSync.js'
+import {
+  DEFAULT_SYNC_ROOT_FILE,
+  getComputerId,
+  readSyncRootFile,
+  reconcile,
+  writeSyncRootFile,
+} from '../src/lib/pdriveSync.js'
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -74,14 +81,19 @@ function queryAppSyncPath() {
 // folder in the browser, which the server stores in ITS app copy's
 // data/backup.json. If this launcher lives in a different app copy (each keeps
 // its own host-local, git-ignored backup.json), reading our own file would show
-// "not set" even though the app has it. So ask the live server first — that is
-// the folder the operator actually set — and only fall back to our own file
-// when the app isn't running. Santosh keeps the app window open while working,
-// so the server is normally up.
+// "not set" even though the app has it. So: ask the live server first — that is
+// the folder the operator actually set — then our own file, then the MACHINE-
+// level copy in ~/.purnaa-tools (written whenever the folder is set; survives
+// re-clones and second app copies, and covers retrieve runs while the app is
+// closed).
 async function resolveSyncRoot() {
   const fromApp = await queryAppSyncPath()
   if (fromApp) return { root: fromApp, from: 'the running app' }
-  return { root: readLocalBackupPath(), from: BACKUP_FILE }
+  const local = readLocalBackupPath()
+  if (local) return { root: local, from: BACKUP_FILE }
+  const machine = readSyncRootFile()
+  if (machine) return { root: machine, from: `this computer's saved setting (${DEFAULT_SYNC_ROOT_FILE})` }
+  return { root: '', from: '' }
 }
 
 const { root, from } = await resolveSyncRoot()
@@ -90,7 +102,7 @@ if (!root) {
   console.error('  No sync folder is set yet. Open the app and set the Backup folder')
   console.error('  (bottom bar) to the P-drive sync folder, then run this again.')
   console.error('')
-  console.error('  Looked in two places:')
+  console.error('  Looked in three places:')
   if (appQuery.reason) {
     console.error(`   - running app: ${appQuery.reason}`)
   } else {
@@ -98,6 +110,7 @@ if (!root) {
     console.error('     (the folder you typed may not have saved — set it again in the app)')
   }
   console.error(`   - this copy's file: ${BACKUP_FILE} (empty or missing)`)
+  console.error(`   - this computer's saved setting: ${DEFAULT_SYNC_ROOT_FILE} (empty or missing)`)
   console.error(`  (Node ${process.version})`)
   process.exit(1)
 }
@@ -108,6 +121,16 @@ if (!fs.existsSync(root)) {
   console.error('  Connect, then run this again.')
   process.exit(1)
 }
+// Self-heal: remember the folder we just resolved, machine-wide AND in this
+// copy's own file, so the next retrieve works even if the app is closed and
+// regardless of which app copy the launcher lives in. Best-effort.
+try {
+  if (readSyncRootFile() !== root) writeSyncRootFile(root)
+  if (readLocalBackupPath() !== root) {
+    fs.mkdirSync(path.dirname(BACKUP_FILE), { recursive: true })
+    fs.writeFileSync(BACKUP_FILE, JSON.stringify({ path: root }, null, 2) + '\n')
+  }
+} catch {}
 
 const by = getComputerId()
 const stylesDir = path.join(APP_ROOT, 'styles')

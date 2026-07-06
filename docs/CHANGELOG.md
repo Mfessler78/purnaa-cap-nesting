@@ -2,6 +2,14 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(sync): remember the sync-root path per MACHINE (`~/.purnaa-tools/sync-root.json`,
+  next to the computer-id) in addition to the per-app-copy `data/backup.json`. The
+  server writes both on set and adopts the machine copy when its own file is empty;
+  Retrieve resolves running-app → own file → machine file and writes back whatever it
+  resolves (self-heal). Kills the recurring Windows "no sync/backup folder is set"
+  on Retrieve when the app is closed or the launcher lives in a different clone.
+  New focused test `tests/syncRoot.test.js`.
+
 - chore(launchers,win): pin a minimum Node major version (`MIN_NODE=18`) so every
   computer runs the same modern Node. `install.bat`/`update.bat` now upgrade an
   older pre-existing Node to LTS via winget (previously winget only ran when Node

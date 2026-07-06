@@ -9,7 +9,7 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-03. Update the date when you change this file.
+> Last updated: 2026-07-06. Update the date when you change this file.
 
 ---
 
@@ -178,7 +178,7 @@ Use this to see the blast radius before editing.
 | `src/lib/scanRegions.js` | Region scan support | `pdfPaths` | `detectRegions` |
 | `src/lib/dxf.js` | DXF / laser geometry | `pdfGeometry` | engine / laser path |
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
-| `src/lib/pdriveSync.js` | P-drive style sync: computer-id, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
+| `src/lib/pdriveSync.js` | P-drive style sync: computer-id, machine-level sync-root memory, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
 | `server/styles-api.js` | Persist styles/fabrics, optional gs flatten; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, Ghostscript (shell), `pdriveSync` | `api.js` |
 
 **Rule of thumb:** `pdfGeometry.js` is a leaf — safe-ish to optimize internally but
@@ -195,11 +195,16 @@ each other), `current/` (the live style folders, the only sync source), and `bac
 add/update/delete). Saving or deleting a style (`server/styles-api.js`) publishes it to
 `current/` and appends the event **last** (crash-safe); the retrieve launchers
 (`scripts/pdrive-retrieve.js`) replay + reconcile the local machine to that set —
-add/update/skip-unchanged/delete-with-recoverable-warning. Retrieve gets the sync-root
-path from the **running app** (`GET localhost:4173/api/backup`) and only falls back to
-this copy's `data/backup.json` when the app isn't running — so the folder the operator
-set in the browser is authoritative even if the launcher lives in a different app copy
-(each copy keeps its own host-local, git-ignored `backup.json`). All one Node implementation
+add/update/skip-unchanged/delete-with-recoverable-warning. The sync-root path is
+remembered in **two places**: the app copy's git-ignored `data/backup.json` (primary)
+and a **machine-level copy** at `~/.purnaa-tools/sync-root.json` (same dir as the
+computer-id — survives re-clones, second app copies, and app updates; both written by
+`pdriveSync.js`'s `read/writeSyncRootFile`). Retrieve resolves it in order: the
+**running app** (`GET localhost:4173/api/backup`) → this copy's `data/backup.json` →
+the machine-level file; whatever it resolves it writes back to both (self-heal), so a
+retrieve run with the app closed, or from a fresh clone, still finds the folder the
+operator set once in the browser. The server likewise adopts the machine-level value
+when its own `backup.json` is empty. All one Node implementation
 (`pdriveSync.js`) so Mac and Windows behave identically. Content identity is a `sha256`
 over the sorted `relPath+bytes` of a style folder, so unchanged styles are skipped. This
 is LAN file sync on the existing P-drive channel — **no cloud, no service** (invariant §10

@@ -8,7 +8,7 @@ import os from 'node:os'
 import crypto from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { getComputerId, publishStyleWrite, publishStyleDelete } from '../src/lib/pdriveSync.js'
+import { getComputerId, publishStyleWrite, publishStyleDelete, readSyncRootFile, writeSyncRootFile } from '../src/lib/pdriveSync.js'
 
 // The shared store must be the SAME folder no matter how the server is launched
 // (npm run dev, npm run serve, a double-click launcher, or Task Scheduler with a
@@ -438,16 +438,38 @@ async function handleHost(req, res) {
 const BACKUP_STATE = path.join(APP_ROOT, 'data', 'backup.json')
 
 async function readBackupState() {
+  let state = { path: null }
   try {
-    return JSON.parse(await fs.readFile(BACKUP_STATE, 'utf8'))
-  } catch {
-    return { path: null }
+    state = JSON.parse(await fs.readFile(BACKUP_STATE, 'utf8'))
+  } catch {}
+  if (state.path) {
+    // Keep the machine-level copy current so other/future clones inherit it.
+    try {
+      if (readSyncRootFile() !== state.path) writeSyncRootFile(state.path)
+    } catch {}
+    return state
   }
+  // Self-heal a fresh or second clone: the folder was set once on this machine
+  // (machine-level copy in ~/.purnaa-tools survives re-clones), so adopt it
+  // instead of reporting "not set" and orphaning the retrieve launcher.
+  const machine = readSyncRootFile()
+  if (!machine) return { path: null }
+  const healed = { path: machine }
+  try {
+    await writeBackupState(healed)
+  } catch {}
+  return healed
 }
 
 async function writeBackupState(state) {
   await fs.mkdir(path.dirname(BACKUP_STATE), { recursive: true })
   await writeFileAtomic(BACKUP_STATE, JSON.stringify(state, null, 2))
+  // Machine-level copy (~/.purnaa-tools/sync-root.json): survives re-clones and
+  // second app copies; the retrieve launcher falls back to it when the app is
+  // closed. Best-effort — the app-copy file above is still the primary.
+  try {
+    writeSyncRootFile(state.path)
+  } catch {}
 }
 
 async function backupStatus() {

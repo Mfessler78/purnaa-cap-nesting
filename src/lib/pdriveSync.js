@@ -57,6 +57,31 @@ export function getComputerId(idFile = DEFAULT_ID_FILE) {
   }
 }
 
+// ---- Machine-level sync-root memory ----------------------------------------
+// data/backup.json is per-APP-COPY (git-ignored), so a second clone, a re-clone,
+// or a retrieve run while the app is closed all read an EMPTY file and conclude
+// "no sync folder is set" even though the operator set it long ago. Keep one
+// extra copy of the sync-root path per MACHINE, in the same ~/.purnaa-tools/
+// dir as the computer-id, which survives app updates and re-clones. The server
+// writes it whenever the folder is set; server and retrieve fall back to it and
+// self-heal their local copy from it. One writer/reader pair, defined once here,
+// so Mac and Windows cannot drift.
+export const DEFAULT_SYNC_ROOT_FILE = path.join(os.homedir(), '.purnaa-tools', 'sync-root.json')
+
+export function readSyncRootFile(file = DEFAULT_SYNC_ROOT_FILE) {
+  try {
+    return (JSON.parse(fs.readFileSync(file, 'utf8')).path || '').trim()
+  } catch {
+    return ''
+  }
+}
+
+export function writeSyncRootFile(rootPath, file = DEFAULT_SYNC_ROOT_FILE) {
+  if (!rootPath) return
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify({ path: rootPath }, null, 2) + '\n')
+}
+
 // ---- Style-folder content hash --------------------------------------------
 // sha256 over the SORTED list of (relative POSIX path + NUL + raw bytes + NUL)
 // for every file in the style folder. Two folders with identical contents hash
