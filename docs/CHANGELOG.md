@@ -2,6 +2,12 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(tile): DXF Tile Export stage 2 — new `src/lib/tileMath.js`: pure, deterministic
+  grid math. usableWidth = fabric − 20 mm per side (no length-axis border); Check B hard
+  error when the tile is wider than the usable fabric (names both numbers); quantity =
+  tiles, rounded down to whole dozens via the engine's `roundDownToSheet` (warn on
+  remainder, block under one dozen); row-major placements x = 20 + col·tileW,
+  y = row·tileH. Tests: `tests/tileMath.test.js`.
 - feat(tile): DXF Tile Export stage 1 — new `src/lib/tileInspect.js` reads Mila's
   pre-packed PDF tile (tile = the page box): size in mm via `pdf-lib`, geometry via the
   existing `extractOutlines`, and Check A: warn-only when any path sits within 5 mm of a
