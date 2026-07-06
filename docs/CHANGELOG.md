@@ -2,6 +2,11 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(tile): DXF Tile Export stage 1 — new `src/lib/tileInspect.js` reads Mila's
+  pre-packed PDF tile (tile = the page box): size in mm via `pdf-lib`, geometry via the
+  existing `extractOutlines`, and Check A: warn-only when any path sits within 5 mm of a
+  tile edge (or past it), in the run-screen warning shape. No tiling/UI yet (stages 2–4).
+  Branch `dxf-tile-export`. Tests: `tests/tileInspect.test.js`.
 - fix(verify): color-profile check now reads `/DefaultRGB` (`/DefaultCMYK`/`/DefaultGray`)
   resource remaps and document OutputIntents — Illustrator embeds the profile that way, so
   profiled artwork used to falsely warn "no embedded color profile". A present profile now

@@ -9,7 +9,8 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-06. Update the date when you change this file.
+> Last updated: 2026-07-06 (added `tileInspect.js`, DXF Tile Export stage 1).
+> Update the date when you change this file.
 
 ---
 
@@ -109,6 +110,9 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │       ├── detectRegions.js #   auto-detect closed paths as candidate slots (M6)
 │       ├── scanRegions.js   #   region scanning support for auto-detect
 │       ├── dxf.js           #   DXF-related handling (laser path / geometry)
+│       ├── tileInspect.js   #   DXF Tile Export (in progress): inspect Mila's
+│       │                    #   pre-packed PDF tile — size in mm + 5 mm edge-
+│       │                    #   inset warning (Check A, warn-only)
 │       ├── api.js           #   client → server middleware calls
 │       └── pdriveSync.js    #   P-drive style sync: computer-id, content hash,
 │                            #   append-only events, replay, seed, reconcile
@@ -181,6 +185,7 @@ Use this to see the blast radius before editing.
 | `src/lib/detectRegions.js` | Auto-detect closed-path slots | `pdfPaths`, `scanRegions` | `MappingTool.jsx` |
 | `src/lib/scanRegions.js` | Region scan support | `pdfPaths` | `detectRegions` |
 | `src/lib/dxf.js` | DXF / laser geometry | `pdfGeometry` | engine / laser path |
+| `src/lib/tileInspect.js` | DXF Tile Export stage 1: tile (page) size in mm + Check A (5 mm edge-inset, warn-only) on Mila's pre-packed PDF tile | `pdf-lib`, `pdfPaths` | (tile flow UI, later stage) |
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
 | `src/lib/pdriveSync.js` | P-drive style sync: computer-id, machine-level sync-root memory, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
 | `server/styles-api.js` | Persist styles/fabrics, optional gs flatten; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, Ghostscript (shell), `pdriveSync` | `api.js` |
