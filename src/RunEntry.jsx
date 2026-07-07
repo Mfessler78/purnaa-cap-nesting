@@ -18,11 +18,11 @@ export default function RunEntry() {
       <div className="entry-choice">
         <h2>Does this job include printed artwork?</h2>
         <div className="entry-buttons">
-          <button className="primary" onClick={() => setBranch('artwork')}>
+          <button className="primary" onClick={() => setBranch('artwork')} data-tutorial="entry-artwork">
             With artwork
             <small>Fill a style’s pre-nest with customer artwork → print PDF (+ laser DXF)</small>
           </button>
-          <button className="primary" onClick={() => setBranch('dxf')}>
+          <button className="primary" onClick={() => setBranch('dxf')} data-tutorial="entry-dxf">
             DXF only
             <small>Repeat a pre-packed tile across the fabric → laser DXF, no printing</small>
           </button>

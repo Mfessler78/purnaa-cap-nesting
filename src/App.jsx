@@ -3,6 +3,8 @@ import MappingTool from './MappingTool.jsx'
 import RunEntry from './RunEntry.jsx'
 import FabricsScreen from './FabricsScreen.jsx'
 import BackupBar from './BackupBar.jsx'
+import TutorialOverlay from './tutorial/TutorialOverlay.jsx'
+import { TUTORIALS } from './tutorial/tutorials.js'
 import { getHostLink } from './lib/api.js'
 
 // Copy text to the clipboard. The modern API only works in a "secure context"
@@ -32,6 +34,9 @@ async function copyText(text) {
 export default function App() {
   const [tab, setTab] = useState('run')
   const [linkMsg, setLinkMsg] = useState('')
+  // The active tutorial (step data from tutorials.js), or null. Lives only in
+  // React state — closing the overlay resets it to null and nothing persists.
+  const [tutorial, setTutorial] = useState(null)
 
   async function copyOfficeLink() {
     setLinkMsg('Detecting…')
@@ -56,18 +61,21 @@ export default function App() {
           <button
             className={`nav-primary${tab === 'run' ? ' active' : ''}`}
             onClick={() => setTab('run')}
+            data-tutorial="nav-run"
           >
             Run Screen
           </button>
           <button
             className={`nav-secondary${tab === 'mapping' ? ' active' : ''}`}
             onClick={() => setTab('mapping')}
+            data-tutorial="nav-mapping"
           >
             Style Mapping Editor
           </button>
           <button
             className={`nav-secondary${tab === 'fabrics' ? ' active' : ''}`}
             onClick={() => setTab('fabrics')}
+            data-tutorial="nav-fabrics"
           >
             Fabrics
           </button>
@@ -77,7 +85,13 @@ export default function App() {
           title="Copies this host's web address so you can paste it into another office computer's browser. If the link stops working on other computers, the address may have changed — click again to get the current one."
         >
           {linkMsg && <span className="office-link-msg">{linkMsg}</span>}
-          <button onClick={copyOfficeLink}>Copy office link</button>
+          <button
+            onClick={() => setTutorial(TUTORIALS.gettingStarted)}
+            title="A guided walkthrough drawn over the live screen. The highlighted control stays clickable; click anywhere else or press Esc to leave."
+          >
+            Tutorial
+          </button>
+          <button onClick={copyOfficeLink} data-tutorial="office-link">Copy office link</button>
         </div>
       </header>
       <main className="app-main">
@@ -86,6 +100,14 @@ export default function App() {
         {tab === 'fabrics' && <FabricsScreen />}
       </main>
       <BackupBar />
+      {tutorial && (
+        <TutorialOverlay
+          key={tutorial.id} // switching tutorials remounts → step index resets
+          steps={tutorial.steps}
+          onClose={() => setTutorial(null)}
+          onLaunch={(id) => TUTORIALS[id] && setTutorial(TUTORIALS[id])}
+        />
+      )}
     </div>
   )
 }

@@ -64,7 +64,7 @@ export default function BackupBar() {
   if (!status) return null
 
   return (
-    <footer className="backup-bar">
+    <footer className="backup-bar" data-tutorial="backup-bar">
       <span className={status.configured ? 'backup-when' : 'backup-when warn'}>
         {status.configured ? 'Styles are shared automatically to the sync folder.' : 'Sync folder not set — styles are only on this computer.'}
       </span>

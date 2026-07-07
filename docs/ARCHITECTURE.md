@@ -9,8 +9,9 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-06 (DXF Tile Export complete: `tileInspect.js`, `tileMath.js`,
-> `tileExport.js`, `TileExportScreen.jsx`, `RunEntry.jsx` fork on the Run tab).
+> Last updated: 2026-07-07 (tutorial system complete: `src/tutorial/` engine + three
+> tutorials as step data + inert `data-tutorial` hooks across the screens; also fixed
+> the stale §2/§5.8 quantity wording — the engine rounds DOWN to whole sheets, U1).
 > Update the date when you change this file.
 
 ---
@@ -41,7 +42,7 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
   │  3. Place artwork into each slot, rotated per-slot (from the map)      │
   │  4. Clip to each piece's true outline + tunable bleed margin           │
   │  5. Embed artwork ONCE, share across all placements (size control)     │
-  │  6. Round qty UP to whole sheets (×12); emit N identical pages         │
+  │  6. Nest whole sheets only (round DOWN; remainder → regular format)    │
   │  6b. Print a per-piece ID label inside each panel (cut-team reference) │
   │  7. Stamp corner (STYLE | FABRIC | QTY) + apply fabric-stretch scale   │
   └───────────────────────────────────────────────────────────────────────┘
@@ -121,6 +122,10 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │   ├── PdfViewer.jsx        # renders a PDF to canvas for viewing
 │   ├── PdfBoxEditor.jsx     # draw/edit slot boxes over a rendered PDF
 │   ├── index.css
+│   ├── tutorial/            # UI-ONLY guided tutorials drawn over the live app
+│   │   ├── TutorialOverlay.jsx  # portal overlay: spotlight on a [data-tutorial]
+│   │   │                    #   element + pointer card; ×/backdrop/Esc = total exit
+│   │   └── tutorials.js     # tutorials as plain step data (no logic)
 │   └── lib/                 # CORE LOGIC ("back end" #1) — keep lean
 │       ├── engine.js        #   THE fill engine: place + rotate + clip + stamp + scale
 │       ├── verifyArtwork.js #   pre-export verification gate
@@ -215,6 +220,8 @@ Use this to see the blast radius before editing.
 | `src/lib/tileExport.js` | DXF Tile Export stage 3: tile contours (mm, tile-relative) duplicated by translation onto the placements → one byte-deterministic DXF | `dxf.js`, `engine.js` (`flattenSubpath` only) | `TileExportScreen.jsx` |
 | `src/RunEntry.jsx` | Run-tab fork: mounts RunScreen or TileExportScreen; "Change" unmounts (clean reset, no shared state) | `RunScreen.jsx`, `TileExportScreen.jsx` | `App.jsx` |
 | `src/TileExportScreen.jsx` | DXF-only screen: upload tile → Check A → width/qty → Check B → canvas layout preview → export DXF (RunScreen's visual language/classes) | `tileInspect`, `tileMath`, `tileExport` | `RunEntry.jsx` |
+| `src/tutorial/TutorialOverlay.jsx` | Guided-tour overlay (portal + spotlight + pointer card); reads the DOM via inert `data-tutorial` attributes, state is React-only, unmounts to zero residue | `react-dom` (`createPortal`) | `App.jsx` |
+| `src/tutorial/tutorials.js` | Tutorial step data (pure data, no logic) | — (leaf) | `App.jsx` |
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
 | `src/lib/pdriveSync.js` | P-drive style sync: computer-id, machine-level sync-root memory, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
 | `server/styles-api.js` | Persist styles/fabrics, optional gs flatten; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, Ghostscript (shell), `pdriveSync` | `api.js` |
@@ -271,7 +278,11 @@ These are the reason the output is correct. Full rationale in
    **not** print it (the die cuts the shape; a printed line is just unwanted ink) — gated
    by `cutMode === 'die'` in `engine.js`. Stitch lines/text/fills are stripped from output.
 7. **Inputs keep vectors intact; only the final export may be flattened.**
-8. **Quantity rounds UP to whole sheets (×12).** 50 caps → 60 → 5 identical sheets.
+8. **Quantity nests whole sheets only — rounds DOWN.** One sheet yields as many caps as
+   the scarcest piece type's slot count (normally 12). 50 caps → 48 nested (4 sheets)
+   plus a warning that the remaining 2 are produced separately in the regular
+   (non-nested) format; an order under one sheet is blocked (nothing to nest). Was
+   round-UP pre-U1; `roundDownToSheet` in `engine.js` is the implementation.
 9. **Direct-vector export is the proven path.** Ghostscript flatten is a rare fallback,
    intentionally frozen (its 120s timeout and ~163s gs runtime on big soft-mask art are
    known and accepted). Don't touch it unless asked.

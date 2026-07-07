@@ -546,7 +546,7 @@ export default function MappingTool() {
   return (
     <div className="mapping-tool">
       <div className="toolbar">
-        <label>
+        <label data-tutorial="map-style-number">
           Style number
           <input
             value={styleNumber}
@@ -577,7 +577,7 @@ export default function MappingTool() {
           Delete
         </button>
         <span className="spacer" />
-        <button className="primary" onClick={onSave}>
+        <button className="primary" onClick={onSave} data-tutorial="map-save">
           Save style
         </button>
       </div>
@@ -608,7 +608,11 @@ export default function MappingTool() {
         <button className={tab === 'prenest' ? 'active' : ''} onClick={() => setTab('prenest')}>
           1. Pre-nest slots ({slots.length})
         </button>
-        <button className={tab === 'template' ? 'active' : ''} onClick={() => setTab('template')}>
+        <button
+          className={tab === 'template' ? 'active' : ''}
+          onClick={() => setTab('template')}
+          data-tutorial="map-tab-template"
+        >
           2. Template pieces ({templatePieces.length})
         </button>
       </div>
@@ -617,7 +621,7 @@ export default function MappingTool() {
       {tab === 'prenest' && (
         <div className="context-bar" title="Die cut and Laser need different spacing, so each has its own pre-nest sheet and slot map. Map them separately.">
           <span className="context-label">Cut mode:</span>
-          <div className="mode-toggle">
+          <div className="mode-toggle" data-tutorial="map-mode">
             {CUT_MODES.map((m) => (
               <button
                 key={m}
@@ -636,7 +640,7 @@ export default function MappingTool() {
       {/* U2: a style can hold several template SIZE variants; artwork auto-picks
           the matching one at run time. Manage variants here. */}
       {tab === 'template' && (
-        <div className="context-bar" title="Add a variant for each template SIZE (e.g. last year's and this year's). On a run, the app picks the variant matching the uploaded artwork's size — it never scales.">
+        <div className="context-bar" data-tutorial="map-variant" title="Add a variant for each template SIZE (e.g. last year's and this year's). On a run, the app picks the variant matching the uploaded artwork's size — it never scales.">
           <span className="context-label">Template variant:</span>
           <select value={tplId} onChange={(e) => switchTemplate(e.target.value)}>
             {tplIds.map((id) => (
@@ -665,7 +669,7 @@ export default function MappingTool() {
       <div className="tab-body">
         <div className="editor-pane">
           <div className="file-row">
-            <label className="file-label">
+            <label className="file-label" data-tutorial="map-file">
               {tab === 'prenest' ? 'Pre-nest PDF:' : 'Customer template PDF:'}
               <input
                 type="file"
@@ -681,12 +685,12 @@ export default function MappingTool() {
             )}
             {activePdf && (
               <span className="detect-controls">
-                <button onClick={onDetect} disabled={detecting}>
+                <button onClick={onDetect} disabled={detecting} data-tutorial="map-detect">
                   {detecting ? 'Detecting…' : 'Auto-detect regions'}
                 </button>
                 {activeDetected.length > 0 && (
                   <>
-                    <button className="primary" onClick={addAllDetected}>
+                    <button className="primary" onClick={addAllDetected} data-tutorial="map-add-all">
                       Add all detected ({activeDetected.length})
                     </button>
                     <button
@@ -737,7 +741,7 @@ export default function MappingTool() {
           )}
         </div>
 
-        <div className="side-pane">
+        <div className="side-pane" data-tutorial="map-side">
           {tab === 'prenest' ? (
             <>
               <h2>Slots</h2>
@@ -749,7 +753,7 @@ export default function MappingTool() {
                 </p>
               )}
               {selectedSlotIds.length > 1 && (
-                <div className="bulk-name">
+                <div className="bulk-name" data-tutorial="map-bulk-name">
                   <strong>{selectedSlotIds.length} slots selected.</strong> Name them all:
                   <div className="bulk-row">
                     <input
@@ -765,7 +769,7 @@ export default function MappingTool() {
                 </div>
               )}
               {selectedSlotIds.length > 1 && (
-                <div className="bulk-rotate">
+                <div className="bulk-rotate" data-tutorial="map-bulk-rotate">
                   <strong>Rotation for {selectedSlotIds.length} selected:</strong>
                   <div className="bulk-row">
                     {ROTATIONS.map((r) => (

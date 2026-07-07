@@ -2,6 +2,42 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(tutorial): the spotlighted control is now really clickable — the dim backdrop is
+  four panels around a genuine hole over the target (container `pointer-events: none`),
+  so clicking the control the step points at drives the live app and the tour stays
+  open; clicking anywhere else (any dim panel) still exits completely. Spotlight's
+  box-shadow dimming replaced by the panels; exit copy updated.
+
+- feat: tutorial entry point + hooks (stage 3) — the 29 inert `data-tutorial="…"`
+  attributes the tutorials target added across App/RunEntry/RunScreen/MappingTool/
+  PdfBoxEditor/BackupBar (attributes only — no behavior, styling, or logic change;
+  nothing reads them but the overlay). Tutorial C quantity copy corrected to the real
+  engine behavior (nests whole sheets, rounds DOWN, remainder produced separately) and
+  the stale round-UP wording in ARCHITECTURE §2/§5.8 fixed to match `roundDownToSheet`
+  (post-U1 behavior). Verified end-to-end headless: every spotlight lands on its
+  intended element on the live screens; conditional targets fall back to centered
+  cards; zero DOM/state residue after all three tours.
+
+- feat: tutorial content (stage 2) — the three tutorials authored as step data in
+  `src/tutorial/tutorials.js` (Getting Started hub 13 steps incl. sync-folder/fabric
+  explainers + 3 common-error cards; How to Add a Style 19 steps; How to Use the Run
+  Screen 12 steps), all copy using the exact UI labels. Engine gained one affordance:
+  steps may carry `actions` (launch buttons) → `onLaunch` prop; App keys the overlay
+  by tutorial id so switching resets to step 1. Header Tutorial button now opens the
+  Getting Started hub (demo removed). Steps targeting hooks that land in stage 3
+  show the centered fallback until then.
+
+- feat: tutorial overlay engine (stage 1) — new `src/tutorial/` folder:
+  `TutorialOverlay.jsx` (React-portal guided overlay: spotlight box around a live
+  `[data-tutorial]` element + pointer card with arrow, follows the element on
+  resize/scroll, centered card for target-less steps, troubleshooting-note callout;
+  exit is total via ×/backdrop-click/Esc — state lives only in React, zero residue)
+  and `tutorials.js` (step data; currently a throwaway 2-step demo, real content in
+  stage 2). Entry: a "Tutorial" button in the header's top-right office-link area
+  (`App.jsx`), which also gained the first inert `data-tutorial="nav-run"` hook.
+  CSS: `/* Tutorial overlay */` section appended to `index.css`. UI-only — touches
+  no engine/verify/export code, no new dependency, no storage.
+
 - fix(tile): neutral wording + any quantity + real layout preview. All personal names
   removed from program strings/comments (the app is instance-neutral). Quantity in the
   DXF-only flow now accepts any whole number ≥ 1 — there is no pre-nest sheet to fill,

@@ -218,7 +218,7 @@ export default function PdfBoxEditor({
   }
 
   return (
-    <div className="editor">
+    <div className="editor" data-tutorial="map-editor">
       <div className="editor-toolbar">
         <button onClick={() => zoom(0.8)}>−</button>
         <button onClick={() => zoom(1.25)}>+</button>
@@ -229,7 +229,11 @@ export default function PdfBoxEditor({
             <button className={mode === 'draw' ? 'active' : ''} onClick={() => setMode('draw')}>
               Draw
             </button>
-            <button className={mode === 'select' ? 'active' : ''} onClick={() => setMode('select')}>
+            <button
+              className={mode === 'select' ? 'active' : ''}
+              onClick={() => setMode('select')}
+              data-tutorial="map-select"
+            >
               Select
             </button>
           </span>
