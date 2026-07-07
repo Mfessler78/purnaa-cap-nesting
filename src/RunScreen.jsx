@@ -286,7 +286,7 @@ export default function RunScreen() {
   return (
     <div className="run-screen">
       <div className="toolbar">
-        <label>
+        <label data-tutorial="run-style">
           Style
           <select
             value={styleId}
@@ -303,7 +303,7 @@ export default function RunScreen() {
             ))}
           </select>
         </label>
-        <label title="Die cut and Laser use different pre-nest spacing; each is mapped separately per style. A mode that isn't mapped for this style is disabled.">
+        <label data-tutorial="run-cutmode" title="Die cut and Laser use different pre-nest spacing; each is mapped separately per style. A mode that isn't mapped for this style is disabled.">
           Cut mode
           <select
             value={cutMode}
@@ -325,7 +325,7 @@ export default function RunScreen() {
             })}
           </select>
         </label>
-        <label>
+        <label data-tutorial="run-fabric">
           Fabric
           <select
             value={fabricName}
@@ -342,7 +342,7 @@ export default function RunScreen() {
             ))}
           </select>
         </label>
-        <label>
+        <label data-tutorial="run-qty">
           Quantity
           <input
             type="number"
@@ -354,7 +354,7 @@ export default function RunScreen() {
             }}
           />
         </label>
-        <label>
+        <label data-tutorial="run-artwork">
           Customer artwork PDF
           <input
             type="file"
@@ -362,7 +362,7 @@ export default function RunScreen() {
             onChange={(e) => onArtworkFile(e.target.files[0])}
           />
         </label>
-        <label className="clip-toggle" title="Trim each piece's artwork to its true shape instead of a rectangle">
+        <label className="clip-toggle" data-tutorial="run-clip" title="Trim each piece's artwork to its true shape instead of a rectangle">
           <input
             type="checkbox"
             checked={clipToOutline}
@@ -407,6 +407,7 @@ export default function RunScreen() {
           className="primary"
           onClick={onFill}
           disabled={!styleId || !cutMode || !fabricName || !artwork || busy}
+          data-tutorial="run-fill"
         >
           {busy ? 'Filling…' : 'Fill layout'}
         </button>
@@ -420,7 +421,7 @@ export default function RunScreen() {
       )}
 
       {report && (
-        <div className="verify-panel">
+        <div className="verify-panel" data-tutorial="run-verify">
           <h3>Verification</h3>
           <ul>
             {report.passed.map((line, i) => (
@@ -451,7 +452,7 @@ export default function RunScreen() {
                     Output sheet size: {fmtOutputSize(result.pdf.width, result.pdf.height)}
                   </div>
                 )}
-                <label className="approve-label">
+                <label className="approve-label" data-tutorial="run-approve">
                   <input
                     type="checkbox"
                     checked={approved}
@@ -463,6 +464,7 @@ export default function RunScreen() {
                   className="primary"
                   disabled={!approved || exporting}
                   onClick={() => onExport('pdflib')}
+                  data-tutorial="run-export"
                 >
                   {exporting ? 'Exporting…' : 'Export print PDF'}
                 </button>

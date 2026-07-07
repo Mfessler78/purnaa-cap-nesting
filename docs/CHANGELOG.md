@@ -2,6 +2,16 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat: tutorial entry point + hooks (stage 3) — the 29 inert `data-tutorial="…"`
+  attributes the tutorials target added across App/RunEntry/RunScreen/MappingTool/
+  PdfBoxEditor/BackupBar (attributes only — no behavior, styling, or logic change;
+  nothing reads them but the overlay). Tutorial C quantity copy corrected to the real
+  engine behavior (nests whole sheets, rounds DOWN, remainder produced separately) and
+  the stale round-UP wording in ARCHITECTURE §2/§5.8 fixed to match `roundDownToSheet`
+  (post-U1 behavior). Verified end-to-end headless: every spotlight lands on its
+  intended element on the live screens; conditional targets fall back to centered
+  cards; zero DOM/state residue after all three tours.
+
 - feat: tutorial content (stage 2) — the three tutorials authored as step data in
   `src/tutorial/tutorials.js` (Getting Started hub 13 steps incl. sync-folder/fabric
   explainers + 3 common-error cards; How to Add a Style 19 steps; How to Use the Run

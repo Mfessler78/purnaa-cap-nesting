@@ -68,12 +68,14 @@ export default function App() {
           <button
             className={`nav-secondary${tab === 'mapping' ? ' active' : ''}`}
             onClick={() => setTab('mapping')}
+            data-tutorial="nav-mapping"
           >
             Style Mapping Editor
           </button>
           <button
             className={`nav-secondary${tab === 'fabrics' ? ' active' : ''}`}
             onClick={() => setTab('fabrics')}
+            data-tutorial="nav-fabrics"
           >
             Fabrics
           </button>
@@ -89,7 +91,7 @@ export default function App() {
           >
             Tutorial
           </button>
-          <button onClick={copyOfficeLink}>Copy office link</button>
+          <button onClick={copyOfficeLink} data-tutorial="office-link">Copy office link</button>
         </div>
       </header>
       <main className="app-main">

@@ -265,7 +265,8 @@ const runScreen = {
     {
       target: 'run-qty',
       title: '4 · Enter the quantity',
-      body: 'Type the number of caps under "Quantity". It rounds UP to whole sheets — a sheet holds 12 caps, so 50 becomes 60 (5 identical sheets). The verification list shows the rounding.',
+      body: 'Type the number of caps under "Quantity". The program nests whole sheets only, so the quantity rounds DOWN to full sheets — the verification list then tells you exactly how many caps this run covers and how many remain, to be produced separately in the regular (non-nested) artwork format.',
+      note: 'An order smaller than one full sheet is blocked entirely — there is nothing to nest, so the whole order goes out in the regular artwork format.',
       arrow: 'up',
     },
     {

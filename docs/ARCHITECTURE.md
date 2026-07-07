@@ -9,9 +9,9 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-07 (tutorial overlay stage 1: new `src/tutorial/` — portal
-> overlay engine + step data; "Tutorial" button in the header; UI-only, no engine
-> contact).
+> Last updated: 2026-07-07 (tutorial system complete: `src/tutorial/` engine + three
+> tutorials as step data + inert `data-tutorial` hooks across the screens; also fixed
+> the stale §2/§5.8 quantity wording — the engine rounds DOWN to whole sheets, U1).
 > Update the date when you change this file.
 
 ---
@@ -42,7 +42,7 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
   │  3. Place artwork into each slot, rotated per-slot (from the map)      │
   │  4. Clip to each piece's true outline + tunable bleed margin           │
   │  5. Embed artwork ONCE, share across all placements (size control)     │
-  │  6. Round qty UP to whole sheets (×12); emit N identical pages         │
+  │  6. Nest whole sheets only (round DOWN; remainder → regular format)    │
   │  6b. Print a per-piece ID label inside each panel (cut-team reference) │
   │  7. Stamp corner (STYLE | FABRIC | QTY) + apply fabric-stretch scale   │
   └───────────────────────────────────────────────────────────────────────┘
@@ -278,7 +278,11 @@ These are the reason the output is correct. Full rationale in
    **not** print it (the die cuts the shape; a printed line is just unwanted ink) — gated
    by `cutMode === 'die'` in `engine.js`. Stitch lines/text/fills are stripped from output.
 7. **Inputs keep vectors intact; only the final export may be flattened.**
-8. **Quantity rounds UP to whole sheets (×12).** 50 caps → 60 → 5 identical sheets.
+8. **Quantity nests whole sheets only — rounds DOWN.** One sheet yields as many caps as
+   the scarcest piece type's slot count (normally 12). 50 caps → 48 nested (4 sheets)
+   plus a warning that the remaining 2 are produced separately in the regular
+   (non-nested) format; an order under one sheet is blocked (nothing to nest). Was
+   round-UP pre-U1; `roundDownToSheet` in `engine.js` is the implementation.
 9. **Direct-vector export is the proven path.** Ghostscript flatten is a rare fallback,
    intentionally frozen (its 120s timeout and ~163s gs runtime on big soft-mask art are
    known and accepted). Don't touch it unless asked.
