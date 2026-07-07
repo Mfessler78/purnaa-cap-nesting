@@ -2,6 +2,17 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat: tutorial overlay engine (stage 1) — new `src/tutorial/` folder:
+  `TutorialOverlay.jsx` (React-portal guided overlay: spotlight box around a live
+  `[data-tutorial]` element + pointer card with arrow, follows the element on
+  resize/scroll, centered card for target-less steps, troubleshooting-note callout;
+  exit is total via ×/backdrop-click/Esc — state lives only in React, zero residue)
+  and `tutorials.js` (step data; currently a throwaway 2-step demo, real content in
+  stage 2). Entry: a "Tutorial" button in the header's top-right office-link area
+  (`App.jsx`), which also gained the first inert `data-tutorial="nav-run"` hook.
+  CSS: `/* Tutorial overlay */` section appended to `index.css`. UI-only — touches
+  no engine/verify/export code, no new dependency, no storage.
+
 - fix(tile): neutral wording + any quantity + real layout preview. All personal names
   removed from program strings/comments (the app is instance-neutral). Quantity in the
   DXF-only flow now accepts any whole number ≥ 1 — there is no pre-nest sheet to fill,

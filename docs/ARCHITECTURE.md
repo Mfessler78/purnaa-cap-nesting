@@ -9,8 +9,9 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-06 (DXF Tile Export complete: `tileInspect.js`, `tileMath.js`,
-> `tileExport.js`, `TileExportScreen.jsx`, `RunEntry.jsx` fork on the Run tab).
+> Last updated: 2026-07-07 (tutorial overlay stage 1: new `src/tutorial/` — portal
+> overlay engine + step data; "Tutorial" button in the header; UI-only, no engine
+> contact).
 > Update the date when you change this file.
 
 ---
@@ -121,6 +122,10 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │   ├── PdfViewer.jsx        # renders a PDF to canvas for viewing
 │   ├── PdfBoxEditor.jsx     # draw/edit slot boxes over a rendered PDF
 │   ├── index.css
+│   ├── tutorial/            # UI-ONLY guided tutorials drawn over the live app
+│   │   ├── TutorialOverlay.jsx  # portal overlay: spotlight on a [data-tutorial]
+│   │   │                    #   element + pointer card; ×/backdrop/Esc = total exit
+│   │   └── tutorials.js     # tutorials as plain step data (no logic)
 │   └── lib/                 # CORE LOGIC ("back end" #1) — keep lean
 │       ├── engine.js        #   THE fill engine: place + rotate + clip + stamp + scale
 │       ├── verifyArtwork.js #   pre-export verification gate
@@ -215,6 +220,8 @@ Use this to see the blast radius before editing.
 | `src/lib/tileExport.js` | DXF Tile Export stage 3: tile contours (mm, tile-relative) duplicated by translation onto the placements → one byte-deterministic DXF | `dxf.js`, `engine.js` (`flattenSubpath` only) | `TileExportScreen.jsx` |
 | `src/RunEntry.jsx` | Run-tab fork: mounts RunScreen or TileExportScreen; "Change" unmounts (clean reset, no shared state) | `RunScreen.jsx`, `TileExportScreen.jsx` | `App.jsx` |
 | `src/TileExportScreen.jsx` | DXF-only screen: upload tile → Check A → width/qty → Check B → canvas layout preview → export DXF (RunScreen's visual language/classes) | `tileInspect`, `tileMath`, `tileExport` | `RunEntry.jsx` |
+| `src/tutorial/TutorialOverlay.jsx` | Guided-tour overlay (portal + spotlight + pointer card); reads the DOM via inert `data-tutorial` attributes, state is React-only, unmounts to zero residue | `react-dom` (`createPortal`) | `App.jsx` |
+| `src/tutorial/tutorials.js` | Tutorial step data (pure data, no logic) | — (leaf) | `App.jsx` |
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
 | `src/lib/pdriveSync.js` | P-drive style sync: computer-id, machine-level sync-root memory, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
 | `server/styles-api.js` | Persist styles/fabrics, optional gs flatten; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, Ghostscript (shell), `pdriveSync` | `api.js` |
