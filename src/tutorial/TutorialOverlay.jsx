@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 
 // Guided-tour overlay, rendered through a portal on top of the live app. A
 // tutorial is pure data — an ordered list of steps:
-//   { target, title, body, note?, arrow?, nextLabel?, backLabel?, doneLabel? }
+//   { target, title, body, note?, arrow?, actions?, nextLabel?, backLabel?, doneLabel? }
 //   target  key of a [data-tutorial="…"] element to spotlight, or null for a
 //           centered card (intros / troubleshooting).
 //   body    string or array of strings (paragraphs).
@@ -12,6 +12,8 @@ import { createPortal } from 'react-dom'
 //           direction its arrow points: 'up' (card below target), 'down'
 //           (above), 'left' (card right of target), 'right' (card left).
 //           Omit to auto-pick below/above by available space.
+//   actions [{ label, tutorial }] — buttons that launch another tutorial via
+//           the onLaunch prop (used by the Getting Started hub).
 // All state lives here and in the parent that mounts us; closing (× button,
 // backdrop click, or Esc) calls onClose, the parent unmounts the component,
 // and nothing survives — no storage, no leftover DOM, no disabled controls.
@@ -20,7 +22,7 @@ const PAD = 4 // spotlight padding around the target, px
 const GAP = 10 // gap between spotlight and pointer card, px
 const MARGIN = 8 // minimum distance from viewport edges, px
 
-export default function TutorialOverlay({ steps, onClose }) {
+export default function TutorialOverlay({ steps, onClose, onLaunch }) {
   const [index, setIndex] = useState(0)
   const [targetRect, setTargetRect] = useState(null)
   const [layout, setLayout] = useState(null) // pointer-card position + arrow
@@ -163,6 +165,15 @@ export default function TutorialOverlay({ steps, onClose }) {
           <p key={i}>{text}</p>
         ))}
         {step.note && <p className="tutorial-note">{step.note}</p>}
+        {step.actions && (
+          <div className="tutorial-actions">
+            {step.actions.map((a) => (
+              <button key={a.tutorial} className="primary" onClick={() => onLaunch?.(a.tutorial)}>
+                {a.label}
+              </button>
+            ))}
+          </div>
+        )}
         {missing && (
           <p className="tutorial-missing">
             This step points at a control that isn't on screen right now — it appears once the

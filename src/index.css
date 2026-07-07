@@ -933,3 +933,9 @@ html {
   margin-top: -9px;
   border-left-color: #fff;
 }
+.tutorial-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}

@@ -2,6 +2,15 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat: tutorial content (stage 2) — the three tutorials authored as step data in
+  `src/tutorial/tutorials.js` (Getting Started hub 13 steps incl. sync-folder/fabric
+  explainers + 3 common-error cards; How to Add a Style 19 steps; How to Use the Run
+  Screen 12 steps), all copy using the exact UI labels. Engine gained one affordance:
+  steps may carry `actions` (launch buttons) → `onLaunch` prop; App keys the overlay
+  by tutorial id so switching resets to step 1. Header Tutorial button now opens the
+  Getting Started hub (demo removed). Steps targeting hooks that land in stage 3
+  show the centered fallback until then.
+
 - feat: tutorial overlay engine (stage 1) — new `src/tutorial/` folder:
   `TutorialOverlay.jsx` (React-portal guided overlay: spotlight box around a live
   `[data-tutorial]` element + pointer card with arrow, follows the element on

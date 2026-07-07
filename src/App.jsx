@@ -4,7 +4,7 @@ import RunEntry from './RunEntry.jsx'
 import FabricsScreen from './FabricsScreen.jsx'
 import BackupBar from './BackupBar.jsx'
 import TutorialOverlay from './tutorial/TutorialOverlay.jsx'
-import { DEMO } from './tutorial/tutorials.js'
+import { TUTORIALS } from './tutorial/tutorials.js'
 import { getHostLink } from './lib/api.js'
 
 // Copy text to the clipboard. The modern API only works in a "secure context"
@@ -84,7 +84,7 @@ export default function App() {
         >
           {linkMsg && <span className="office-link-msg">{linkMsg}</span>}
           <button
-            onClick={() => setTutorial(DEMO)}
+            onClick={() => setTutorial(TUTORIALS.gettingStarted)}
             title="A guided walkthrough drawn over the live screen. Click anywhere outside it or press Esc to leave."
           >
             Tutorial
@@ -98,7 +98,14 @@ export default function App() {
         {tab === 'fabrics' && <FabricsScreen />}
       </main>
       <BackupBar />
-      {tutorial && <TutorialOverlay steps={tutorial.steps} onClose={() => setTutorial(null)} />}
+      {tutorial && (
+        <TutorialOverlay
+          key={tutorial.id} // switching tutorials remounts → step index resets
+          steps={tutorial.steps}
+          onClose={() => setTutorial(null)}
+          onLaunch={(id) => TUTORIALS[id] && setTutorial(TUTORIALS[id])}
+        />
+      )}
     </div>
   )
 }
