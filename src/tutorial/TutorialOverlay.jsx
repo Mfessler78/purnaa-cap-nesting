@@ -17,6 +17,10 @@ import { createPortal } from 'react-dom'
 // All state lives here and in the parent that mounts us; closing (× button,
 // backdrop click, or Esc) calls onClose, the parent unmounts the component,
 // and nothing survives — no storage, no leftover DOM, no disabled controls.
+//
+// Click rules: the dim backdrop is FOUR panels around the spotlight, leaving a
+// real hole over the target — clicking the spotlighted control clicks the live
+// control (the tour stays open); clicking anywhere else exits the tour.
 
 const PAD = 4 // spotlight padding around the target, px
 const GAP = 10 // gap between spotlight and pointer card, px
@@ -126,26 +130,36 @@ export default function TutorialOverlay({ steps, onClose, onLaunch }) {
   const centered = !step.target || missing
   const paragraphs = Array.isArray(step.body) ? step.body : [step.body]
 
+  // The spotlight hole the backdrop panels leave open (viewport coords).
+  const hole = targetRect && {
+    top: targetRect.top - PAD,
+    left: targetRect.left - PAD,
+    width: targetRect.width + PAD * 2,
+    height: targetRect.height + PAD * 2,
+  }
+
   return createPortal(
-    <div className="tutorial-overlay" onMouseDown={onClose}>
-      {targetRect ? (
-        <div
-          className="tutorial-spotlight"
-          style={{
-            top: targetRect.top - PAD,
-            left: targetRect.left - PAD,
-            width: targetRect.width + PAD * 2,
-            height: targetRect.height + PAD * 2,
-          }}
-        />
+    <div className="tutorial-overlay">
+      {hole ? (
+        <>
+          {/* Four dim panels around the hole — clicking any of them exits; the
+              hole itself has no overlay, so the real control stays clickable. */}
+          <div className="tutorial-dim" onMouseDown={onClose} style={{ top: 0, left: 0, right: 0, height: Math.max(0, hole.top) }} />
+          <div className="tutorial-dim" onMouseDown={onClose} style={{ top: hole.top + hole.height, left: 0, right: 0, bottom: 0 }} />
+          <div className="tutorial-dim" onMouseDown={onClose} style={{ top: hole.top, left: 0, width: Math.max(0, hole.left), height: hole.height }} />
+          <div className="tutorial-dim" onMouseDown={onClose} style={{ top: hole.top, left: hole.left + hole.width, right: 0, height: hole.height }} />
+          <div
+            className="tutorial-spotlight"
+            style={{ top: hole.top, left: hole.left, width: hole.width, height: hole.height }}
+          />
+        </>
       ) : (
-        <div className="tutorial-dim" />
+        <div className="tutorial-dim" onMouseDown={onClose} style={{ inset: 0 }} />
       )}
       <div
         ref={cardRef}
         className={`tutorial-card${centered ? ' centered' : ''}`}
         style={centered ? undefined : layout ? { top: layout.top, left: layout.left } : { visibility: 'hidden' }}
-        onMouseDown={(e) => e.stopPropagation()}
       >
         {!centered && layout && (
           <div

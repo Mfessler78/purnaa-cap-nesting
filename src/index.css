@@ -829,26 +829,28 @@ html {
    A portal drawn over the live app: a spotlight box around the real target
    element plus a pointer card with an arrow. Everything unmounts on close —
    these styles are used by nothing else. */
+/* The container lets clicks fall through (pointer-events: none); only the dim
+   panels and the card catch them. The panels surround a HOLE over the target,
+   so the spotlighted control itself stays clickable — clicking a panel exits. */
 .tutorial-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
+  pointer-events: none;
 }
 .tutorial-dim {
   position: absolute;
-  inset: 0;
   background: rgba(15, 15, 30, 0.55);
+  pointer-events: auto;
 }
-/* The dimming for targeted steps comes from the spotlight's huge box-shadow,
-   leaving the target itself at full brightness. */
 .tutorial-spotlight {
   position: fixed;
   border: 2px solid #34c172;
   border-radius: 6px;
-  box-shadow: 0 0 0 200vmax rgba(15, 15, 30, 0.55);
   pointer-events: none;
 }
 .tutorial-card {
+  pointer-events: auto;
   position: fixed;
   width: 340px;
   max-width: calc(100vw - 16px);

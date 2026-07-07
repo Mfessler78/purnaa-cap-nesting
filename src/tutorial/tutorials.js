@@ -13,7 +13,7 @@ const gettingStarted = {
       title: 'Welcome to Purnaa Cap Nesting',
       body: [
         'This program takes a customer’s approved artwork and fills it into a pre-made print layout (a "pre-nest"), placing, rotating and trimming every cap piece into its slot — then exports a print-ready PDF for RasterLink (and a cutting file for laser jobs).',
-        'This tour points at the real screen — nothing is disabled underneath. Leave any time: click outside the box, press Esc, or hit the ×.',
+        'This tour points at the real screen — and the control it highlights stays clickable, so you can follow along for real. Leave any time: click anywhere else, press Esc, or hit the ×.',
       ],
     },
     {

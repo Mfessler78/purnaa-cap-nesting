@@ -2,6 +2,12 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix(tutorial): the spotlighted control is now really clickable — the dim backdrop is
+  four panels around a genuine hole over the target (container `pointer-events: none`),
+  so clicking the control the step points at drives the live app and the tour stays
+  open; clicking anywhere else (any dim panel) still exits completely. Spotlight's
+  box-shadow dimming replaced by the panels; exit copy updated.
+
 - feat: tutorial entry point + hooks (stage 3) — the 29 inert `data-tutorial="…"`
   attributes the tutorials target added across App/RunEntry/RunScreen/MappingTool/
   PdfBoxEditor/BackupBar (attributes only — no behavior, styling, or logic change;

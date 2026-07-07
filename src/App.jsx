@@ -87,7 +87,7 @@ export default function App() {
           {linkMsg && <span className="office-link-msg">{linkMsg}</span>}
           <button
             onClick={() => setTutorial(TUTORIALS.gettingStarted)}
-            title="A guided walkthrough drawn over the live screen. Click anywhere outside it or press Esc to leave."
+            title="A guided walkthrough drawn over the live screen. The highlighted control stays clickable; click anywhere else or press Esc to leave."
           >
             Tutorial
           </button>
