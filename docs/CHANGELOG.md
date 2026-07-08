@@ -2,6 +2,13 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat(tutorial): fourth tutorial "DXF Tile Export" (10 steps walking the DXF-only
+  flow end to end) + its 8 inert `data-tutorial="tile-…"` hooks on TileExportScreen
+  (attributes only, no behavior change); the Getting Started welcome card is now a
+  contents menu — jump buttons to every walkthrough, so no tutorial is ever more
+  than one click from the Tutorial button — and each walkthrough's final card links
+  back with "All tutorials". Data + attributes only; the overlay engine is untouched.
+
 - fix(tutorial): the spotlighted control is now really clickable — the dim backdrop is
   four panels around a genuine hole over the target (container `pointer-events: none`),
   so clicking the control the step points at drives the live app and the tour stays

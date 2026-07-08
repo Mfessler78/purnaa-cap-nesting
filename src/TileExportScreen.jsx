@@ -183,7 +183,7 @@ export default function TileExportScreen() {
   return (
     <div className="run-screen">
       <div className="toolbar">
-        <label>
+        <label data-tutorial="tile-file">
           Tile PDF (pre-packed)
           <input
             type="file"
@@ -191,7 +191,7 @@ export default function TileExportScreen() {
             onChange={(e) => onTileFile(e.target.files[0])}
           />
         </label>
-        <label title="Full fabric width on the roll. 20 mm is kept clear on each side; tiles run freely down the length.">
+        <label data-tutorial="tile-width" title="Full fabric width on the roll. 20 mm is kept clear on each side; tiles run freely down the length.">
           Fabric width (mm)
           <input
             type="number"
@@ -203,7 +203,7 @@ export default function TileExportScreen() {
             }}
           />
         </label>
-        <label title="Number of tiles to cut — any whole number of 1 or more.">
+        <label data-tutorial="tile-qty" title="Number of tiles to cut — any whole number of 1 or more.">
           Quantity
           <input
             type="number"
@@ -215,7 +215,7 @@ export default function TileExportScreen() {
             }}
           />
         </label>
-        <label title="Line width written into the DXF, same as the print flow's laser cut line. Confirm the exact width at the laser install; 1.5 mm is the planned default.">
+        <label data-tutorial="tile-cutline" title="Line width written into the DXF, same as the print flow's laser cut line. Confirm the exact width at the laser install; 1.5 mm is the planned default.">
           Cut line (mm)
           <input
             type="number"
@@ -232,6 +232,7 @@ export default function TileExportScreen() {
           className="primary"
           onClick={onCheckLayout}
           disabled={!tile || !fabricWidth || !quantity || busy}
+          data-tutorial="tile-check"
         >
           Check layout
         </button>
@@ -245,7 +246,7 @@ export default function TileExportScreen() {
       )}
 
       {report && (
-        <div className="verify-panel">
+        <div className="verify-panel" data-tutorial="tile-verify">
           <h3>Verification</h3>
           <ul>
             {report.passed.map((line, i) => (
@@ -271,7 +272,7 @@ export default function TileExportScreen() {
               </span>
             ) : grid ? (
               <>
-                <label className="approve-label">
+                <label className="approve-label" data-tutorial="tile-approve">
                   <input
                     type="checkbox"
                     checked={approved}
@@ -284,6 +285,7 @@ export default function TileExportScreen() {
                   className="primary"
                   disabled={!approved || exporting}
                   onClick={onExport}
+                  data-tutorial="tile-export"
                 >
                   {exporting ? 'Exporting…' : 'Export laser DXF'}
                 </button>

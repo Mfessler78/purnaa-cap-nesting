@@ -9,9 +9,10 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-07 (tutorial system complete: `src/tutorial/` engine + three
-> tutorials as step data + inert `data-tutorial` hooks across the screens; also fixed
-> the stale §2/§5.8 quantity wording — the engine rounds DOWN to whole sheets, U1).
+> Last updated: 2026-07-08 (tutorial system: `src/tutorial/` engine + four tutorials
+> as step data — Getting Started hub whose welcome card doubles as a jump menu,
+> Add a Style, Run Screen, DXF Tile Export — + inert `data-tutorial` hooks across
+> the screens, incl. `tile-…` on TileExportScreen).
 > Update the date when you change this file.
 
 ---
