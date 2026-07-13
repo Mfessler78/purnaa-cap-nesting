@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import MappingTool from './MappingTool.jsx'
-import RunEntry from './RunEntry.jsx'
+import RunScreen from './RunScreen.jsx'
 import FabricsScreen from './FabricsScreen.jsx'
 import BackupBar from './BackupBar.jsx'
 import TutorialOverlay from './tutorial/TutorialOverlay.jsx'
@@ -96,7 +96,7 @@ export default function App() {
       </header>
       <main className="app-main">
         {tab === 'mapping' && <MappingTool />}
-        {tab === 'run' && <RunEntry />}
+        {tab === 'run' && <RunScreen />}
         {tab === 'fabrics' && <FabricsScreen />}
       </main>
       <BackupBar />

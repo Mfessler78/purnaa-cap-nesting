@@ -2,6 +2,13 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- refactor: retire DXF Tile Export from main — the laser software now ships its own
+  nesting utility. The complete tool (RunEntry fork, TileExportScreen, tileInspect/
+  tileMath/tileExport + tests, entry-fork CSS, the DXF Tile Export tutorial) is
+  preserved on fork branch `dxf-tile-tool`. Main is back to the single artwork flow:
+  Run tab mounts RunScreen directly, tutorials trimmed to Getting Started / Add a
+  Style / Run Screen (engine untouched), `flattenSubpath` back to engine-internal.
+
 - feat(tutorial): fourth tutorial "DXF Tile Export" (10 steps walking the DXF-only
   flow end to end) + its 8 inert `data-tutorial="tile-…"` hooks on TileExportScreen
   (attributes only, no behavior change); the Getting Started welcome card is now a

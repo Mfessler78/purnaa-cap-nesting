@@ -19,25 +19,12 @@ const gettingStarted = {
       actions: [
         { label: 'How to Add a Style', tutorial: 'addStyle' },
         { label: 'How to Use the Run Screen', tutorial: 'runScreen' },
-        { label: 'DXF Tile Export', tutorial: 'dxfTile' },
       ],
     },
     {
       target: 'nav-run',
       title: 'Run Screen',
       body: 'The big green button is where daily work happens: pick a style, upload the customer’s artwork, fill the layout, and export the print files. There’s a full tutorial for it at the end of this tour.',
-      arrow: 'up',
-    },
-    {
-      target: 'entry-artwork',
-      title: '"With artwork" jobs',
-      body: 'The Run Screen first asks whether the job includes printed artwork. "With artwork" is the normal path: fill a style’s pre-nest with customer artwork and export a print PDF (plus a laser DXF on laser jobs).',
-      arrow: 'up',
-    },
-    {
-      target: 'entry-dxf',
-      title: '"DXF only" jobs',
-      body: 'For jobs with no printing at all: upload a pre-packed tile PDF and the program repeats it across the fabric into one laser cutting file (DXF). Nothing is printed. There’s a full walkthrough for it at the end of this tour.',
       arrow: 'up',
     },
     {
@@ -85,7 +72,6 @@ const gettingStarted = {
       actions: [
         { label: 'How to Add a Style', tutorial: 'addStyle' },
         { label: 'How to Use the Run Screen', tutorial: 'runScreen' },
-        { label: 'DXF Tile Export', tutorial: 'dxfTile' },
       ],
     },
     {
@@ -248,9 +234,9 @@ const runScreen = {
   id: 'runScreen',
   steps: [
     {
-      target: 'entry-artwork',
+      target: 'nav-run',
       title: 'How to Use the Run Screen',
-      body: 'On the Run Screen tab, the program first asks "Does this job include printed artwork?" — click "With artwork" for a normal print job, then follow along.',
+      body: 'Everything here happens on the Run Screen. Click "Run Screen" in the header, then follow along — this tour stays on top.',
       arrow: 'up',
     },
     {
@@ -327,76 +313,4 @@ const runScreen = {
   ],
 }
 
-const dxfTile = {
-  id: 'dxfTile',
-  steps: [
-    {
-      target: 'entry-dxf',
-      title: 'How to Export a Tiled Laser DXF',
-      body: 'For cutting-only jobs with no printing. On the Run Screen tab, the program first asks "Does this job include printed artwork?" — click "DXF only", then follow along.',
-      arrow: 'up',
-    },
-    {
-      target: 'tile-file',
-      title: '1 · Upload the tile PDF',
-      body: [
-        'Next to "Tile PDF (pre-packed)", click Choose File and upload the tile: ONE PDF page with the pieces already arranged and spaced.',
-        'The PDF page box IS the tile — tiles repeat edge-to-edge with no added gap, so any spacing you want between tiles must already be inside the page.',
-      ],
-      note: 'On upload the program reads the tile size and cut paths, and warns (⚠, never blocks) if any cut line sits within 5 mm of the page edge — or hangs past it.',
-      arrow: 'up',
-    },
-    {
-      target: 'tile-width',
-      title: '2 · Enter the fabric width',
-      body: 'Type the full width of the fabric roll in mm under "Fabric width (mm)". 20 mm is kept clear on each side; tiles fill the usable middle and run freely down the roll.',
-      arrow: 'up',
-    },
-    {
-      target: 'tile-qty',
-      title: '3 · Enter the quantity',
-      body: 'Type the number of TILES to cut under "Quantity" — any whole number of 1 or more. This counts tiles, not caps: if one tile holds a dozen caps’ pieces, quantity 5 cuts five dozen.',
-      arrow: 'up',
-    },
-    {
-      target: 'tile-cutline',
-      title: '4 · Cut line (mm)',
-      body: 'The line width written into the DXF, same as the print flow’s laser cut line. Leave it at 1.5 unless the laser install calls for a different width.',
-      arrow: 'up',
-    },
-    {
-      target: 'tile-check',
-      title: '5 · Check layout',
-      body: 'Click "Check layout". The program lays the tiles in rows across the usable width and computes the roll length used — deterministic grid tiling, no auto-nesting.',
-      note: 'A ✗ saying the tile is wider than the usable fabric is a hard block: nothing in the program can fix it — it needs a narrower tile or wider fabric.',
-      arrow: 'up',
-    },
-    {
-      target: 'tile-verify',
-      title: '6 · Read the verification list',
-      body: 'Same list as the print flow: ✓ shows the tile size, the layout (tiles per row × rows) and the roll length used; ⚠ warnings to read; ✗ blocking problems.',
-      arrow: 'up',
-    },
-    {
-      target: 'tile-approve',
-      title: '7 · Check the preview, then confirm',
-      body: 'The layout preview below shows EXACTLY what the DXF contains — every tile’s cut lines in place, dashed lines marking the 20 mm side margins. Look it over, then tick "I checked the layout preview below and the numbers above" to unlock the export button.',
-      arrow: 'up',
-    },
-    {
-      target: 'tile-export',
-      title: '8 · Export laser DXF',
-      body: 'Click "Export laser DXF". You receive one cutting file named with the tile’s file name, the fabric width and the quantity — send it to the laser.',
-      arrow: 'up',
-    },
-    {
-      target: null,
-      title: 'That’s a DXF-only job',
-      body: 'Nothing is printed in this flow. Any input change after a check invalidates the layout — you’ll check and confirm again, which is intentional.',
-      actions: [{ label: 'All tutorials', tutorial: 'gettingStarted' }],
-      doneLabel: 'Finish',
-    },
-  ],
-}
-
-export const TUTORIALS = { gettingStarted, addStyle, runScreen, dxfTile }
+export const TUTORIALS = { gettingStarted, addStyle, runScreen }

@@ -85,10 +85,8 @@ export function rotVec(rotation, x, y) {
 }
 
 // Flatten a subpath (m/l/c segments) into a polygon of [x,y] points, sampling
-// cubic beziers. A polygon is what the outward-offset below needs. Exported so
-// the DXF tile flow (tileExport.js) flattens curves the same way the laser DXF
-// path here does — the two must never disagree on curve shape.
-export function flattenSubpath(sp, steps = 12) {
+// cubic beziers. A polygon is what the outward-offset below needs.
+function flattenSubpath(sp, steps = 12) {
   const poly = []
   let cur = null
   for (const seg of sp) {
