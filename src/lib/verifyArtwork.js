@@ -31,8 +31,9 @@ export async function checkArtworkRegions(artworkBytes, templatePieces) {
 // either way:
 //   A) which color profile is embedded: Adobe RGB (1998) confirms; any other
 //      profile (or none) draws a match-your-RasterLink-setting advisory;
-//   B) whether the artwork is flattened, inferred from the page's image count
-//      (an unflattened, many-image file rips very slowly in RasterLink).
+//   B) whether the artwork is heavily layered (multiple images on the page —
+//      the slow-rip condition in RasterLink); the fix is flattening in
+//      Photoshop, customer-side — the app itself never flattens.
 //
 // This reads PDF structure only — it changes no pixels, color data, or vectors
 // (invariant §7).
@@ -279,14 +280,15 @@ export async function checkArtworkColor(artworkBytes) {
         applyTagged(tagged)
       }
 
-      // Check B — flatten, inferred from image count.
+      // Check B — the slow-rip condition, inferred from image count. The app
+      // never flattens (invariant §7): it only names the symptom and points to
+      // Photoshop, where the customer flattens with color authority.
       if (imageCount > 1) {
         warnings.push(
-          `This artwork is not flattened (it contains ${imageCount} separate images). The main ` +
-            'export button flattens the final print file for you, preserving quality, whenever a ' +
-            'color profile is embedded. If flattening isn’t wanted, use “Export without ' +
-            'flattening” — but expect the unflattened file to be slow to load and process in ' +
-            'RasterLink (large layered files can take around 15 minutes).',
+          `This artwork has multiple layered/masked images (${imageCount} found) and may rip ` +
+            'slowly in RasterLink — large layered files can take around 15 minutes. To speed up ' +
+            'the rip, flatten it in Photoshop before running: Layer → Flatten Image (after ' +
+            'embedding the color profile), then re-save and upload again. You can still proceed.',
         )
       }
     } else {

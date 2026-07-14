@@ -34,7 +34,11 @@ test('multi-image unprofiled artwork warns about both color profile and flatten'
   assert.equal(confirmation, null)
   assert.equal(warnings.length, 2)
   assert.ok(warnings.some((w) => /no embedded color profile.*no profile for RasterLink to match/i.test(w)))
-  assert.ok(warnings.some((w) => /not flattened \(it contains 9 separate images\)/i.test(w)))
+  const slowRip = warnings.find((w) => /multiple layered\/masked images \(9 found\)/.test(w))
+  assert.ok(slowRip)
+  assert.match(slowRip, /flatten it in Photoshop/i)
+  // The app only warns — it must never claim to flatten anything itself.
+  assert.doesNotMatch(slowRip, /export button|the program|the app/i)
 })
 
 test('sRGB artwork WARNS — sRGB is no longer the standard; message is RasterLink parity', async () => {

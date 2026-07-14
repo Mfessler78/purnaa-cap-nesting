@@ -2,6 +2,12 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat: warn on slow-rip layered artwork (flatten in Photoshop). Check B's copy
+  replaces the old flatten-button text: same detection (page image count > 1), new
+  message names the symptom ("multiple layered/masked images … may rip slowly in
+  RasterLink") and points to the fix location (Photoshop, Layer → Flatten Image) —
+  never claims the app flattens anything. Advisory-only, same ⚠ slot, never blocks.
+
 - revert: drop in-app flatten, restore single direct-vector export. The raster
   flatten made exports ~6× larger (1.08 → 6.80 MB on the reference job) and would
   SLOW RasterLink — the opposite of its goal. Deleted `src/lib/flattenExport.js`,
