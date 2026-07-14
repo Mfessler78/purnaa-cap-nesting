@@ -3,6 +3,7 @@ import PdfViewer from './PdfViewer.jsx'
 import { listStyles, getStyle, getStylePdfFile, listFabrics } from './lib/api'
 import { loadPdfPage } from './lib/pdfRender'
 import { fillLayout } from './lib/engine'
+import { flattenExport } from './lib/flattenExport'
 import { checkArtworkRegions, checkArtworkColor } from './lib/verifyArtwork'
 
 const MODE_LABELS = { die: 'Die cut', laser: 'Laser' }
@@ -234,6 +235,7 @@ export default function RunScreen() {
           copies: res.copies,
           mode,
           exportBytes: exportRes.pdfBytes,
+          flatten: exportRes.flatten,
           dxf: exportRes.dxf || null,
         })
       }
@@ -246,18 +248,32 @@ export default function RunScreen() {
     }
   }
 
-  async function onExport() {
+  // The uploaded artwork carries an RGB ICC profile we can re-tag a raster
+  // with. This is the flatten guard (invariant §7, owner-authorized): only
+  // profiled artwork is ever flattened, and the raster is tagged with the
+  // EXACT same profile bytes — unprofiled files always export unflattened.
+  const canFlatten = !!(artColor?.profileBytes && artColor.profile === 'rgb')
+
+  async function onExport(wantFlatten) {
     setExporting(true)
     setExportInfo(null)
-    setProgress('Preparing the print PDF…')
+    const doFlatten = wantFlatten && canFlatten
+    setProgress(
+      doFlatten
+        ? 'Flattening the print PDF at 300 dpi — a large sheet can take a minute. Keep this tab open…'
+        : 'Preparing the print PDF…',
+    )
     try {
       await tick()
-      const blob = new Blob([result.exportBytes], { type: 'application/pdf' })
+      const bytes = doFlatten
+        ? await flattenExport({ ...result.flatten, profileBytes: artColor.profileBytes })
+        : result.exportBytes
+      const blob = new Blob([bytes], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       const modeTag = result.mode ? ` ${result.mode.toUpperCase()}` : ''
       const a = document.createElement('a')
       a.href = url
-      a.download = `${styleId} ${fabricName} qty${result.rounded}${modeTag} PRINT.pdf`
+      a.download = `${styleId} ${fabricName} qty${result.rounded}${modeTag} PRINT${doFlatten ? ' FLATTENED' : ''}.pdf`
       a.click()
       URL.revokeObjectURL(url)
       // Laser mode also drops the DXF the cutter reads, alongside the PDF.
@@ -269,9 +285,14 @@ export default function RunScreen() {
         da.click()
         URL.revokeObjectURL(durl)
       }
+      const dxfNote = result.mode === 'laser' && result.dxf ? ' (PDF + DXF)' : ''
       setExportInfo({
         kind: 'ok',
-        text: `Exported${result.mode === 'laser' && result.dxf ? ' (PDF + DXF)' : ''}.`,
+        text: doFlatten
+          ? `Exported flattened${dxfNote} — 300 dpi lossless raster, tagged “${artColor.profileLabel}”.`
+          : wantFlatten && !canFlatten
+            ? `Exported without flattening${dxfNote} — the artwork has no embedded RGB color profile, so it is never flattened.`
+            : `Exported without flattening${dxfNote}.`,
       })
     } catch (err) {
       setExportInfo({ kind: 'error', text: err.message })
@@ -461,11 +482,29 @@ export default function RunScreen() {
                 <button
                   className="primary"
                   disabled={!approved || exporting}
-                  onClick={onExport}
+                  onClick={() => onExport(true)}
                   data-tutorial="run-export"
+                  title={
+                    canFlatten
+                      ? 'Rasterizes the finished sheet at 300 dpi (lossless) and tags it with the artwork’s own color profile — nothing left for RasterLink to mis-rip.'
+                      : 'No embedded RGB color profile in this artwork, so this exports the direct-vector file unflattened.'
+                  }
                 >
-                  {exporting ? 'Exporting…' : 'Export print PDF'}
+                  {exporting ? 'Exporting…' : 'Export print PDF (flattened)'}
                 </button>
+                <button
+                  className="secondary"
+                  disabled={!approved || exporting}
+                  onClick={() => onExport(false)}
+                  data-tutorial="run-export-plain"
+                  title="The direct-vector export — the file exactly as composed, never rasterized."
+                >
+                  Export without flattening
+                </button>
+                <span className="hint-text">
+                  Flattening only happens when the artwork has an embedded color profile — without
+                  one, both buttons export the same unflattened file.
+                </span>
               </>
             )}
           </div>

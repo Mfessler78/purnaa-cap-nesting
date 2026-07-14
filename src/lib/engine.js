@@ -318,11 +318,25 @@ const MM_TO_PT = 72 / 25.4 // 1 mm in PDF points
 // is the literal ASCII "%PDF-1.x" at offset 0; we rewrite the minor digit in
 // place (same length).
 const PDF14_PREFIX = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e] // "%PDF-1."
-function toPdf14(bytes) {
+export function toPdf14(bytes) {
   let ok = bytes.length > PDF14_PREFIX.length
   for (let i = 0; ok && i < PDF14_PREFIX.length; i++) ok = bytes[i] === PDF14_PREFIX[i]
   if (ok) bytes[PDF14_PREFIX.length] = 0x34 // '4' → "%PDF-1.4"
   return bytes
+}
+
+// The corner metadata stamp, drawn identically by the direct-vector export
+// (below) and the in-app flatten (flattenExport.js) — single-sourced so the
+// two exports can never drift apart.
+const STAMP_SIZE = 30 // pt — small but readable on a large-format sheet
+export function drawStamp(page, font, text) {
+  page.drawText(text, {
+    x: 24,
+    y: page.getHeight() - 24 - STAMP_SIZE,
+    size: STAMP_SIZE,
+    font,
+    color: rgb(0, 0, 0),
+  })
 }
 
 // Operators that STROKE a piece's cut line in pure black at the slot's position
@@ -763,7 +777,6 @@ export async function fillLayout({
   const newW = emb.width * factor
   const newH = emb.height * factor
   const font = await final.embedFont(StandardFonts.Helvetica)
-  const stampSize = 30 // pt — small but readable on a large-format sheet
   // Stamp gains the cut mode (U3) so the operator can see at a glance whether a
   // sheet is the die or laser layout, and the artwork's color profile so the
   // print itself shows what RasterLink must be set to match.
@@ -771,17 +784,14 @@ export async function fillLayout({
   if (cutMode) stampParts.push(cutMode.toUpperCase())
   if (colorProfile) stampParts.push(colorProfile)
   const stamp = stampParts.join(' | ')
+  const stampTexts = Array.from({ length: copies }, (_, k) =>
+    copies > 1 ? `${stamp}  (sheet ${k + 1}/${copies})` : stamp,
+  )
 
-  for (let i = 1; i <= copies; i++) {
+  for (let i = 0; i < copies; i++) {
     const outPage = final.addPage([newW, newH])
     outPage.drawPage(emb, { x: 0, y: 0, xScale: factor, yScale: factor })
-    outPage.drawText(copies > 1 ? `${stamp}  (sheet ${i}/${copies})` : stamp, {
-      x: 24,
-      y: newH - 24 - stampSize,
-      size: stampSize,
-      font,
-      color: rgb(0, 0, 0),
-    })
+    drawStamp(outPage, font, stampTexts[i])
   }
 
   // Laser DXF (U4): one sheet's cut contours, carrying the SAME fabric-stretch
@@ -798,6 +808,11 @@ export async function fillLayout({
     // Classic xref table (no object/xref streams) + a 1.4 version label, so the
     // RIP accepts it. See toPdf14 above.
     pdfBytes: toPdf14(await final.save({ useObjectStreams: false })),
+    // Everything the in-app flatten (flattenExport.js) needs to rebuild the
+    // sheets from a raster: the unstamped, unscaled filled sheet plus the
+    // final page geometry and per-sheet stamp texts (the flatten draws the
+    // stamps itself, as vector text — text carries no transparency).
+    flatten: { sheetBytes: filledBytes, width: newW, height: newH, stamps: stampTexts },
     rounded,
     copies,
     unitsPerSheet,

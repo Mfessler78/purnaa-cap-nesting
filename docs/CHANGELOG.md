@@ -2,6 +2,20 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat: guarded flatten-on-export + unflattened export button. Main button is now
+  "Export print PDF (flattened)": when the artwork embeds an RGB ICC profile, the
+  finished sheets are rasterized in-app (new `src/lib/flattenExport.js`: 300 dpi,
+  lossless Flate RGB, tiled under canvas limits, tiles embedded once and shared by
+  all sheet pages, stamps redrawn as vector text via engine's `drawStamp`) and the
+  raster is tagged with the artwork's OWN ICC bytes (from `checkArtworkColor`, which
+  now returns `profileBytes`). No embedded RGB profile → main button exports the
+  direct-vector file unchanged (never flatten unprofiled). New secondary button
+  "Export without flattening" always exports direct-vector. Check B advisory
+  reworded to explain both buttons. Engine returns a `flatten` source (unstamped
+  sheet + stamp texts). pako imported directly (already ships inside pdf-lib — no
+  new package). Measured on PUR560104 laser qty 12: direct 1.08 MB, flattened
+  6.80 MB, zero SMasks/transparency in the flattened file, pixel-identical content.
+
 - feat: color-profile advisory keys on Adobe RGB (1998) — the new company standard
   (sRGB no longer special-cased). Only Adobe RGB (1998) confirms; any other embedded
   profile draws a RasterLink-PARITY warning ("match the profile set in RasterLink" —

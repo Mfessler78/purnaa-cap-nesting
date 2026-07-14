@@ -9,14 +9,16 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-14 (two owner-signed-off changes: 1. Ghostscript removed
+> Last updated: 2026-07-14 (three owner-signed-off changes: 1. Ghostscript removed
 > entirely — the gs flatten fallback, its `/api/export` endpoint, and the passthrough
-> round-trip are gone; export downloads the direct-vector bytes straight from the
-> browser; an in-app flatten replacement lands in a follow-up change. 2. Color-profile
+> round-trip are gone; exports download straight from the browser. 2. Color-profile
 > advisory re-keyed: Adobe RGB (1998) is the company standard — it confirms, anything
 > else embedded draws a RasterLink-parity warning, sRGB is no longer special-cased;
 > detection runs at artwork upload and the profile name is printed on the export's
-> corner stamp. Previous: 2026-07-13 DXF Tile Export retired to fork branch
+> corner stamp. 3. Guarded flatten-on-export: the main button flattens in-app
+> (`flattenExport.js`, 300 dpi lossless, tagged with the artwork's own ICC bytes)
+> only when an RGB ICC profile is embedded; a second button always exports the
+> direct-vector file. Previous: 2026-07-13 DXF Tile Export retired to fork branch
 > `dxf-tile-tool`).
 > Update the date when you change this file.
 
@@ -68,8 +70,14 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
         │                                   + flatten advisory (read-only, never
         │                                   blocks)
         ▼
-  EXPORT
-   • Direct vector (RasterLink-proven) — downloaded straight from the browser
+  EXPORT (two buttons; both download straight from the browser)
+   • MAIN "Export print PDF (flattened)" — rasterizes the finished sheets
+     in-app (src/lib/flattenExport.js: 300 dpi, lossless Flate RGB, tiled
+     for canvas limits, tagged with the artwork's OWN ICC profile bytes)
+     ONLY when the artwork embeds an RGB ICC profile; without one it
+     exports the direct-vector file unflattened — never flatten unprofiled
+   • "Export without flattening" — always the direct-vector file
+     (RasterLink-proven)
         │
         ▼
   Print-ready PDF  →  RasterLink (RIP)  →  Mimaki TS100-1600
@@ -125,6 +133,7 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │   │   └── tutorials.js     # tutorials as plain step data (no logic)
 │   └── lib/                 # CORE LOGIC ("back end" #1) — keep lean
 │       ├── engine.js        #   THE fill engine: place + rotate + clip + stamp + scale
+│       ├── flattenExport.js #   in-app flatten: 300 dpi tiled raster, ICC-tagged (browser-only)
 │       ├── verifyArtwork.js #   pre-export verification gate
 │       ├── pdfGeometry.js   #   geometry helpers (boxes, transforms, rotation math)
 │       ├── pdfPaths.js      #   extract/handle vector paths from PDFs
@@ -198,6 +207,7 @@ Use this to see the blast radius before editing.
 |--------|------|------------|----------------|
 | `src/lib/engine.js` | The fill pipeline (place, rotate, clip, stamp, scale, multi-sheet) | `pdf-lib`, `pdfGeometry`, `pdfPaths` | `RunScreen.jsx` |
 | `src/lib/verifyArtwork.js` | Pre-export checks: region presence/size (blocking) + color-profile advisory (Adobe RGB (1998) confirms; any other embedded profile warns to match RasterLink's setting; never blocks; also feeds the stamp's profile segment) & flatten advisory | `pdf-lib`, `pdfRender`/`scanRegions` (lazy, DOM-only) | `RunScreen.jsx`, `engine.js` |
+| `src/lib/flattenExport.js` | In-app flatten (browser-only): tile-rasterize the filled sheet at 300 dpi (lossless Flate RGB), tag with the artwork's own ICC bytes, rebuild pages + stamps; tiles embedded once and shared by all sheet pages | `pdf-lib`, `pako` (ships inside pdf-lib), `pdfRender`, `engine` (drawStamp/toPdf14) | `RunScreen.jsx` |
 | `src/lib/pdfGeometry.js` | Box/transform/rotation math | — (leaf) | engine, verify, editors |
 | `src/lib/pdfPaths.js` | Vector path extraction from PDFs | `pdfjs-dist` | engine, detectRegions |
 | `src/lib/pdfRender.js` | Rasterize PDF pages for display | `pdfjs-dist` | `PdfViewer.jsx` |
@@ -261,17 +271,23 @@ These are the reason the output is correct. Full rationale in
    black cut line printed around each piece, so laser exports keep it. Die-cut runs do
    **not** print it (the die cuts the shape; a printed line is just unwanted ink) — gated
    by `cutMode === 'die'` in `engine.js`. Stitch lines/text/fills are stripped from output.
-7. **Inputs keep vectors intact; only the final export may be flattened.**
+7. **Inputs keep vectors intact; only the final export may be flattened — and
+   auto-flatten is guarded.** The main export button flattens (300 dpi lossless
+   raster) **only when the uploaded artwork already embeds an RGB ICC profile**,
+   and the raster is tagged with those exact profile bytes (owner-authorized
+   crossing of never-auto-fix, 2026-07-14). No embedded profile → the main button
+   exports unflattened; no profile is ever auto-assigned and no color data is
+   modified. "Export without flattening" always produces the direct-vector file.
 8. **Quantity nests whole sheets only — rounds DOWN.** One sheet yields as many caps as
    the scarcest piece type's slot count (normally 12). 50 caps → 48 nested (4 sheets)
    plus a warning that the remaining 2 are produced separately in the regular
    (non-nested) format; an order under one sheet is blocked (nothing to nest). Was
    round-UP pre-U1; `roundDownToSheet` in `engine.js` is the implementation.
-9. **Direct-vector export is the proven path.** The old Ghostscript flatten fallback
-   was removed entirely (owner sign-off, 2026-07-14) — there is no shell-out and no
-   `/api/export` endpoint; the export bytes download straight from the browser. An
-   in-app flatten (pdfjs render → pdf-lib embed, guarded by an embedded ICC profile)
-   replaces it in a follow-up change.
+9. **Direct-vector export is the proven path; flatten is in-app.** The old
+   Ghostscript flatten fallback was removed entirely (owner sign-off, 2026-07-14) —
+   no shell-out, no `/api/export` endpoint; both exports download straight from the
+   browser. Its replacement is `src/lib/flattenExport.js` (pdfjs tile-render →
+   pako Flate → pdf-lib image pages), governed by the invariant-§7 guard.
 10. **Local only.** No cloud, auth, accounts, or deployment.
 
 ---

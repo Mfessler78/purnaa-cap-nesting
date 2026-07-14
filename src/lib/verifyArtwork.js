@@ -114,7 +114,9 @@ function classifyColorSpace(cs, depth = 0) {
       const stream = cs.lookup(1)
       if (stream instanceof PDFRawStream) {
         const bytes = streamBytes(stream)
-        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes) }
+        // Keep the raw profile bytes: the in-app flatten re-tags its raster
+        // with this EXACT profile (never a substitute).
+        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes), bytes }
       }
       return { kind: 'unknown' }
     }
@@ -190,7 +192,7 @@ function outputIntentProfile(doc) {
       const dest = intent.lookup(PDFName.of('DestOutputProfile'))
       if (dest instanceof PDFRawStream) {
         const bytes = streamBytes(dest)
-        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes) }
+        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes), bytes }
       }
     }
   } catch {
@@ -235,6 +237,7 @@ export async function checkArtworkColor(artworkBytes) {
   let profile = 'unknown'
   let profileName = null
   let profileLabel = null
+  let profileBytes = null
   try {
     const doc = await PDFDocument.load(artworkBytes, { updateMetadata: false })
     const { images, spaces } = collectColorInfo(doc, doc.getPage(0))
@@ -252,6 +255,7 @@ export async function checkArtworkColor(artworkBytes) {
       profile = t.kind === 'icc' ? t.class || 'icc' : 'defined'
       profileName = t.name || null
       profileLabel = labelFor(t)
+      profileBytes = t.bytes || null
       if (isStandard(t)) {
         confirmation =
           `Color profile confirmed: “${t.name}” is embedded — matches the company standard. ` +
@@ -282,10 +286,11 @@ export async function checkArtworkColor(artworkBytes) {
       // Check B — flatten, inferred from image count.
       if (imageCount > 1) {
         warnings.push(
-          `This artwork is not flattened (it contains ${imageCount} separate images), so it ` +
-            'will be slow to process in RasterLink — large layered files can take around 15 ' +
-            'minutes. To fix: in Photoshop, Layer → Flatten Image (after embedding the color ' +
-            'profile), then re-save and upload again. You can still proceed.',
+          `This artwork is not flattened (it contains ${imageCount} separate images). The main ` +
+            'export button flattens the final print file for you, preserving quality, whenever a ' +
+            'color profile is embedded. If flattening isn’t wanted, use “Export without ' +
+            'flattening” — but expect the unflattened file to be slow to load and process in ' +
+            'RasterLink (large layered files can take around 15 minutes).',
         )
       }
     } else {
@@ -296,7 +301,7 @@ export async function checkArtworkColor(artworkBytes) {
       if (ev) applyTagged(ev)
     }
   } catch {
-    return { warnings: [], confirmation: null, imageCount: 0, profile: 'unknown', profileName: null, profileLabel: null }
+    return { warnings: [], confirmation: null, imageCount: 0, profile: 'unknown', profileName: null, profileLabel: null, profileBytes: null }
   }
-  return { warnings, confirmation, imageCount, profile, profileName, profileLabel }
+  return { warnings, confirmation, imageCount, profile, profileName, profileLabel, profileBytes }
 }
