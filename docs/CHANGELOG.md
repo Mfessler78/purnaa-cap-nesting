@@ -2,6 +2,16 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- feat: color-profile advisory keys on Adobe RGB (1998) — the new company standard
+  (sRGB no longer special-cased). Only Adobe RGB (1998) confirms; any other embedded
+  profile draws a RasterLink-PARITY warning ("match the profile set in RasterLink" —
+  never a print-time color-shift claim); no profile → "nothing for RasterLink to
+  match" + Assign Profile → Adobe RGB (1998) fix. Detection (unchanged path: images,
+  /DefaultRGB remaps, OutputIntents) now runs at artwork UPLOAD in RunScreen; the
+  detected profile name (or "No profile") is passed to `fillLayout` as `colorProfile`
+  and printed on every sheet's corner stamp (STYLE | FABRIC | QTY | MODE | PROFILE).
+  New fixture + reworked verifyArtwork tests.
+
 - chore: remove Ghostscript flatten path entirely (owner sign-off) — gs shell-out,
   `/api/export` endpoint + its passthrough round-trip, `exportStatus`/`processExport`
   client calls, the "Flatten with Ghostscript" button and its CSS all deleted; export

@@ -24,12 +24,13 @@ export async function checkArtworkRegions(artworkBytes, templatePieces) {
 // ---------------------------------------------------------------------------
 // Color-profile & flatten advisory (detect-only, WARN-NEVER-BLOCK).
 //
-// We proved on printed fabric that color shifts come from missing/undefined
-// color profiles, not from flattening: unprofiled artwork is assigned a space
-// by the viewer/RIP and over-saturates, while artwork carrying a working RGB
-// profile prints true. So at upload we TELL the operator two things and let
-// them proceed either way:
-//   A) whether a usable color profile is embedded (warn if missing or wrong);
+// Company standard: artwork is prepared in Adobe RGB (1998), and RasterLink
+// is configured with the same input profile. Color accuracy comes from that
+// PARITY — the profile embedded in the file matching the profile the RIP is
+// set to — so at upload we TELL the operator two things and let them proceed
+// either way:
+//   A) which color profile is embedded: Adobe RGB (1998) confirms; any other
+//      profile (or none) draws a match-your-RasterLink-setting advisory;
 //   B) whether the artwork is flattened, inferred from the page's image count
 //      (an unflattened, many-image file rips very slowly in RasterLink).
 //
@@ -198,42 +199,42 @@ function outputIntentProfile(doc) {
   return null
 }
 
+// Only the company standard confirms; every other embedded profile draws the
+// parity warning (sRGB is NOT special-cased — it is no longer the standard).
+const isStandard = (p) => !!p.name && /adobe\s*rgb\s*\(?\s*1998\s*\)?/i.test(p.name)
+
 const FIX_PROFILE =
-  'in Photoshop, Edit → Assign Profile → “sRGB IEC61966-2.1”, then re-save with ' +
+  'in Photoshop, Edit → Assign Profile → “Adobe RGB (1998)”, then re-save with ' +
   '“Embed Color Profile” checked and upload again. You can still proceed.'
 
-// An ICC RGB working space with no readable name is assumed fine (don't cry
-// wolf); only a name that clearly isn't sRGB, or a non-RGB class, is unsuitable.
-function isSuitable(img) {
-  return img.class === 'rgb' && (!img.name || /srgb/i.test(img.name))
-}
+const NO_PROFILE_MSG =
+  'This artwork has no embedded color profile, so there is no profile for RasterLink ' +
+  `to match — color accuracy can’t be verified. To fix: ${FIX_PROFILE}`
 
-function unsuitableLabel(img) {
-  if (img.name) return `“${img.name}”`
-  if (img.class === 'cmyk') return 'a CMYK color profile'
-  if (img.class === 'gray') return 'a grayscale color profile'
-  return 'a non-sRGB RGB color profile'
-}
-
-// Positive confirmation line for a present profile, naming it exactly.
-function confirmLine(img) {
-  if (img.name) return `Color profile confirmed: “${img.name}” is embedded`
-  if (img.kind === 'defined') return 'Color profile confirmed: a calibrated color space is defined (no ICC profile name)'
-  const cls = { rgb: 'an RGB', cmyk: 'a CMYK', gray: 'a grayscale' }[img.class] || 'an'
-  return `Color profile confirmed: ${cls} ICC profile is embedded (profile name unreadable)`
+// Human-readable name for a detected profile: the exact ICC name when
+// readable, else the best description available. Also printed on the export
+// stamp, so keep it short.
+function labelFor(p) {
+  if (p.name) return p.name
+  if (p.kind === 'defined') return 'Calibrated color space (no ICC name)'
+  if (p.class === 'cmyk') return 'CMYK ICC profile (name unreadable)'
+  if (p.class === 'gray') return 'Grayscale ICC profile (name unreadable)'
+  return 'RGB ICC profile (name unreadable)'
 }
 
 // Detect-only color-profile + flatten advisory. Returns warning strings (the
-// shape RunScreen already renders), a positive `confirmation` line when a
-// usable profile IS present (naming the exact profile), and diagnostics for
-// tests. Never throws on unreadable artwork — it returns no warnings so the
-// visual preview and the region check stay the backstops.
+// shape RunScreen already renders), a positive `confirmation` line when the
+// company-standard profile IS embedded (naming it exactly), `profileLabel`
+// (the plain profile name for the export stamp), and diagnostics for tests.
+// Never throws on unreadable artwork — it returns no warnings so the visual
+// preview and the region check stay the backstops.
 export async function checkArtworkColor(artworkBytes) {
   const warnings = []
   let confirmation = null
   let imageCount = 0
   let profile = 'unknown'
   let profileName = null
+  let profileLabel = null
   try {
     const doc = await PDFDocument.load(artworkBytes, { updateMetadata: false })
     const { images, spaces } = collectColorInfo(doc, doc.getPage(0))
@@ -244,29 +245,38 @@ export async function checkArtworkColor(artworkBytes) {
     // Default* remap (applied in collectColorInfo) → the document OutputIntent.
     const effective = intent ? images.map((i) => (i.kind === 'none' ? intent : i)) : images
 
+    // Confirmation or parity warning for the profile the file is tagged with.
+    // NEVER a claim about print-time color behavior — the advisory is about
+    // matching the profile set in RasterLink, nothing more.
+    const applyTagged = (t) => {
+      profile = t.kind === 'icc' ? t.class || 'icc' : 'defined'
+      profileName = t.name || null
+      profileLabel = labelFor(t)
+      if (isStandard(t)) {
+        confirmation =
+          `Color profile confirmed: “${t.name}” is embedded — matches the company standard. ` +
+          'Ensure RasterLink is set to the same profile so colors stay accurate.'
+      } else {
+        warnings.push(
+          `This artwork is tagged “${profileLabel}”, not the company standard “Adobe RGB (1998)”. ` +
+            'The artwork’s color profile needs to match the profile set in RasterLink to maintain ' +
+            'color accuracy — set RasterLink to this same profile for the job, or re-save the ' +
+            'artwork in Adobe RGB (1998). You can still proceed.',
+        )
+      }
+    }
+
     if (imageCount > 0) {
       // Check A — color profile (one warning OR one confirmation; worst case wins).
       const anyMissing = effective.some((i) => i.kind === 'none')
-      const unsuitable = effective.find((i) => i.kind === 'icc' && !isSuitable(i))
-      const confirmed = effective.find((i) => i.kind === 'icc' && i.name) ||
+      const tagged = effective.find((i) => i.kind === 'icc' && i.name) ||
         effective.find((i) => i.kind === 'icc' || i.kind === 'defined')
       if (anyMissing) {
         profile = 'none'
-        warnings.push(
-          'This artwork has no embedded color profile, so its colors may shift ' +
-            `(often look over-saturated) when printed. To fix: ${FIX_PROFILE}`,
-        )
-      } else if (unsuitable) {
-        profile = unsuitable.class || 'other'
-        profileName = unsuitable.name || null
-        warnings.push(
-          `This artwork’s embedded color profile is ${unsuitableLabel(unsuitable)}, which ` +
-            `can shift colors when printed. To fix: ${FIX_PROFILE}`,
-        )
-      } else if (confirmed) {
-        profile = confirmed.kind === 'icc' ? 'sRGB' : 'defined'
-        profileName = confirmed.name || null
-        confirmation = `${confirmLine(confirmed)} — colors should print true.`
+        profileLabel = 'No profile'
+        warnings.push(NO_PROFILE_MSG)
+      } else if (tagged) {
+        applyTagged(tagged)
       }
 
       // Check B — flatten, inferred from image count.
@@ -279,18 +289,14 @@ export async function checkArtworkColor(artworkBytes) {
         )
       }
     } else {
-      // Vector-only artwork: confirm a profile carried by the resource
+      // Vector-only artwork: judge a profile carried by the resource
       // color-space dictionaries or the OutputIntent; otherwise stay silent
       // (unchanged behavior — the warning texts are image-specific).
       const ev = (intent && intent.class ? intent : null) || spaces.find((s) => s.kind === 'icc')
-      if (ev) {
-        profile = ev.class || 'unknown'
-        profileName = ev.name || null
-        confirmation = `${confirmLine(ev)} — colors should print true.`
-      }
+      if (ev) applyTagged(ev)
     }
   } catch {
-    return { warnings: [], confirmation: null, imageCount: 0, profile: 'unknown', profileName: null }
+    return { warnings: [], confirmation: null, imageCount: 0, profile: 'unknown', profileName: null, profileLabel: null }
   }
-  return { warnings, confirmation, imageCount, profile, profileName }
+  return { warnings, confirmation, imageCount, profile, profileName, profileLabel }
 }

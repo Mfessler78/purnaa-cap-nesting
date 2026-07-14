@@ -452,6 +452,7 @@ export async function fillLayout({
   cutLineWidthMm = 1.5, // laser cut-line width; editable, confirm exact value at install
   pieceLabels = true, // print each piece's type inside it (U5) for the cut team
   cutMode = null, // 'die' | 'laser' | null — shown on the stamp; laser also emits a DXF (U4)
+  colorProfile = null, // detected artwork profile name (or 'No profile') — shown on the stamp
 }) {
   const errors = []
   const warnings = []
@@ -764,10 +765,12 @@ export async function fillLayout({
   const font = await final.embedFont(StandardFonts.Helvetica)
   const stampSize = 30 // pt — small but readable on a large-format sheet
   // Stamp gains the cut mode (U3) so the operator can see at a glance whether a
-  // sheet is the die or laser layout.
-  const stamp = cutMode
-    ? `${style.style} | ${fabric.name} | ${rounded} | ${cutMode.toUpperCase()}`
-    : `${style.style} | ${fabric.name} | ${rounded}`
+  // sheet is the die or laser layout, and the artwork's color profile so the
+  // print itself shows what RasterLink must be set to match.
+  const stampParts = [style.style, fabric.name, String(rounded)]
+  if (cutMode) stampParts.push(cutMode.toUpperCase())
+  if (colorProfile) stampParts.push(colorProfile)
+  const stamp = stampParts.join(' | ')
 
   for (let i = 1; i <= copies; i++) {
     const outPage = final.addPage([newW, newH])

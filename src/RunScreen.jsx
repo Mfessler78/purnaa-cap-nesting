@@ -58,6 +58,7 @@ export default function RunScreen() {
   const [fabricName, setFabricName] = useState('')
   const [quantity, setQuantity] = useState(12)
   const [artwork, setArtwork] = useState(null) // { bytes, name }
+  const [artColor, setArtColor] = useState(null) // checkArtworkColor result, detected at upload
   const [clipToOutline, setClipToOutline] = useState(true)
   const [bleedIn, setBleedIn] = useState(0.25) // outward bleed kept when clipping, inches
   const [cutLineMm, setCutLineMm] = useState(1.5) // black cut-line width the laser follows, mm
@@ -115,8 +116,13 @@ export default function RunScreen() {
 
   async function onArtworkFile(file) {
     if (!file) return
-    setArtwork({ bytes: new Uint8Array(await file.arrayBuffer()), name: file.name })
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    setArtwork({ bytes, name: file.name })
+    setArtColor(null)
     resetOutput()
+    // Detect the color profile at upload (cheap structure read, no render) so
+    // the advisory and the export stamp key on the file the operator just chose.
+    setArtColor(await checkArtworkColor(bytes))
   }
 
   async function onFill() {
@@ -149,6 +155,9 @@ export default function RunScreen() {
       // engine), plus the cut mode for the stamp + DXF.
       const engineStyle = { style: styleMeta.style, templatePieces: variant.pieces, slots: prenestEntry.slots }
       const fabric = fabrics.find((f) => f.name === fabricName)
+      // Profile was detected at upload; fall back to detecting now only if that
+      // hasn't finished yet (fast structure read either way).
+      const colorCheck = artColor ?? (await checkArtworkColor(artwork.bytes))
       const common = {
         prenestBytes,
         templateBytes,
@@ -160,12 +169,12 @@ export default function RunScreen() {
         clipToOutline,
         clipBleed: Math.max(0, Number(bleedIn) || 0) * 72,
         cutLineWidthMm: Math.max(0, Number(cutLineMm) || 0),
+        colorProfile: colorCheck.profileLabel || null,
       }
       setProgress('Checking artwork and placing pieces… (large artwork can take a moment)')
       await tick()
-      const [artChecks, colorCheck, res] = await Promise.all([
+      const [artChecks, res] = await Promise.all([
         checkArtworkRegions(artwork.bytes, variant.pieces),
-        checkArtworkColor(artwork.bytes),
         fillLayout({ ...common, guides: true }),
       ])
       // Export composition: same placements on a blank page — no guide content.

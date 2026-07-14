@@ -9,12 +9,15 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-14 (Ghostscript removed entirely — owner sign-off. The gs
-> flatten fallback, its `/api/export` endpoint, and the passthrough round-trip are
-> gone; export downloads the direct-vector bytes straight from the browser. An
-> in-app flatten replacement lands in a follow-up change. Previous: 2026-07-13 DXF
-> Tile Export retired to fork branch `dxf-tile-tool`; tutorial system carries three
-> tutorials: Getting Started, Add a Style, Run Screen).
+> Last updated: 2026-07-14 (two owner-signed-off changes: 1. Ghostscript removed
+> entirely — the gs flatten fallback, its `/api/export` endpoint, and the passthrough
+> round-trip are gone; export downloads the direct-vector bytes straight from the
+> browser; an in-app flatten replacement lands in a follow-up change. 2. Color-profile
+> advisory re-keyed: Adobe RGB (1998) is the company standard — it confirms, anything
+> else embedded draws a RasterLink-parity warning, sRGB is no longer special-cased;
+> detection runs at artwork upload and the profile name is printed on the export's
+> corner stamp. Previous: 2026-07-13 DXF Tile Export retired to fork branch
+> `dxf-tile-tool`).
 > Update the date when you change this file.
 
 ---
@@ -47,16 +50,21 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
   │  5. Embed artwork ONCE, share across all placements (size control)     │
   │  6. Nest whole sheets only (round DOWN; remainder → regular format)    │
   │  6b. Print a per-piece ID label inside each panel (cut-team reference) │
-  │  7. Stamp corner (STYLE | FABRIC | QTY) + apply fabric-stretch scale   │
+  │  7. Stamp corner (STYLE | FABRIC | QTY | MODE | COLOR PROFILE)         │
+  │     + apply fabric-stretch scale                                       │
   └───────────────────────────────────────────────────────────────────────┘
         │
         ▼
   VERIFY GATE (src/lib/verifyArtwork.js) — blocks export on missing/mismatched
         │                                   pieces or size mismatch; also emits
-        │                                   color-profile advisory (confirms the
-        │                                   exact embedded profile, or warns if
-        │                                   none/unsuitable — incl. profiles in
-        │                                   /DefaultRGB resources & OutputIntents)
+        │                                   color-profile advisory keyed on Adobe
+        │                                   RGB (1998), the company standard:
+        │                                   confirms it exactly; any other
+        │                                   embedded profile (or none) warns to
+        │                                   match the profile set in RasterLink
+        │                                   (parity — never a color-shift claim;
+        │                                   detection incl. /DefaultRGB resources
+        │                                   & OutputIntents, runs at upload)
         │                                   + flatten advisory (read-only, never
         │                                   blocks)
         ▼
@@ -189,7 +197,7 @@ Use this to see the blast radius before editing.
 | Module | Owns | Depends on | Depended on by |
 |--------|------|------------|----------------|
 | `src/lib/engine.js` | The fill pipeline (place, rotate, clip, stamp, scale, multi-sheet) | `pdf-lib`, `pdfGeometry`, `pdfPaths` | `RunScreen.jsx` |
-| `src/lib/verifyArtwork.js` | Pre-export checks: region presence/size (blocking) + color-profile advisory (confirmation naming the exact profile, or warning; never blocks) & flatten advisory | `pdf-lib`, `pdfRender`/`scanRegions` (lazy, DOM-only) | `RunScreen.jsx`, `engine.js` |
+| `src/lib/verifyArtwork.js` | Pre-export checks: region presence/size (blocking) + color-profile advisory (Adobe RGB (1998) confirms; any other embedded profile warns to match RasterLink's setting; never blocks; also feeds the stamp's profile segment) & flatten advisory | `pdf-lib`, `pdfRender`/`scanRegions` (lazy, DOM-only) | `RunScreen.jsx`, `engine.js` |
 | `src/lib/pdfGeometry.js` | Box/transform/rotation math | — (leaf) | engine, verify, editors |
 | `src/lib/pdfPaths.js` | Vector path extraction from PDFs | `pdfjs-dist` | engine, detectRegions |
 | `src/lib/pdfRender.js` | Rasterize PDF pages for display | `pdfjs-dist` | `PdfViewer.jsx` |
