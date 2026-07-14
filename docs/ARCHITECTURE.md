@@ -9,12 +9,12 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-13 (DXF Tile Export retired from main — the laser software now
-> ships its own nesting utility. The complete tool + its tutorial live on the fork
-> branch `dxf-tile-tool`. Main is back to the single artwork flow; the tutorial system
-> — `src/tutorial/` engine + tutorials as step data with the Getting Started hub whose
-> welcome card doubles as a jump menu — now carries three tutorials: Getting Started,
-> Add a Style, Run Screen).
+> Last updated: 2026-07-14 (Ghostscript removed entirely — owner sign-off. The gs
+> flatten fallback, its `/api/export` endpoint, and the passthrough round-trip are
+> gone; export downloads the direct-vector bytes straight from the browser. An
+> in-app flatten replacement lands in a follow-up change. Previous: 2026-07-13 DXF
+> Tile Export retired to fork branch `dxf-tile-tool`; tutorial system carries three
+> tutorials: Getting Started, Add a Style, Run Screen).
 > Update the date when you change this file.
 
 ---
@@ -61,8 +61,7 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
         │                                   blocks)
         ▼
   EXPORT
-   • Direct vector (default, RasterLink-proven)  ← preferred path
-   • Flatten transparency via Ghostscript (rare fallback, left as-is)
+   • Direct vector (RasterLink-proven) — downloaded straight from the browser
         │
         ▼
   Print-ready PDF  →  RasterLink (RIP)  →  Mimaki TS100-1600
@@ -131,7 +130,7 @@ and `dist/` are generated/vendored — out of scope, do not edit.
 │                            #   (Node-only; shared by the retrieve CLI + server)
 │
 ├── server/                  # "back end" #2: tiny Vite dev-server middleware. Keep minimal.
-│   ├── styles-api.js        #   read/write style maps, fabric table, optional gs export
+│   ├── styles-api.js        #   read/write style maps, fabric table
 │   └── serve.js             #   serve glue
 │
 ├── styles/                  # STYLE DATA (one folder per style)
@@ -201,7 +200,7 @@ Use this to see the blast radius before editing.
 | `src/tutorial/tutorials.js` | Tutorial step data (pure data, no logic) | — (leaf) | `App.jsx` |
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
 | `src/lib/pdriveSync.js` | P-drive style sync: computer-id, machine-level sync-root memory, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
-| `server/styles-api.js` | Persist styles/fabrics, optional gs flatten; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, Ghostscript (shell), `pdriveSync` | `api.js` |
+| `server/styles-api.js` | Persist styles/fabrics; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, `pdriveSync` | `api.js` |
 
 **Rule of thumb:** `pdfGeometry.js` is a leaf — safe-ish to optimize internally but
 widely depended on, so its behavior must not change. `engine.js` is the highest-risk file
@@ -260,9 +259,11 @@ These are the reason the output is correct. Full rationale in
    plus a warning that the remaining 2 are produced separately in the regular
    (non-nested) format; an order under one sheet is blocked (nothing to nest). Was
    round-UP pre-U1; `roundDownToSheet` in `engine.js` is the implementation.
-9. **Direct-vector export is the proven path.** Ghostscript flatten is a rare fallback,
-   intentionally frozen (its 120s timeout and ~163s gs runtime on big soft-mask art are
-   known and accepted). Don't touch it unless asked.
+9. **Direct-vector export is the proven path.** The old Ghostscript flatten fallback
+   was removed entirely (owner sign-off, 2026-07-14) — there is no shell-out and no
+   `/api/export` endpoint; the export bytes download straight from the browser. An
+   in-app flatten (pdfjs render → pdf-lib embed, guarded by an embedded ICC profile)
+   replaces it in a follow-up change.
 10. **Local only.** No cloud, auth, accounts, or deployment.
 
 ---

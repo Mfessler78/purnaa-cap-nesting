@@ -95,30 +95,6 @@ export async function saveFabrics(fabrics) {
   return json
 }
 
-export async function exportStatus() {
-  const res = await fetch('/api/export/status')
-  if (!res.ok) return { ghostscript: false }
-  return res.json()
-}
-
-export async function processExport(pdfBytes, settings) {
-  const res = await fetch('/api/export', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pdf: bytesToBase64(pdfBytes), settings }),
-  })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.error || 'Export processing failed')
-  return { bytes: base64ToBytes(json.pdf), applied: json.applied }
-}
-
-export function base64ToBytes(b64) {
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
-
 export function bytesToBase64(bytes) {
   let binary = ''
   const chunk = 0x8000

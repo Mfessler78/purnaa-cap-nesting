@@ -268,22 +268,6 @@ missing), tick **"I checked the preview below,"** and move to export.
 downloads a print-ready PDF named with the style, fabric, and quantity. Open it in
 RasterLink and print.
 
-### The "Flatten with Ghostscript" button — you almost never touch this
-
-It sits next to the export button, labeled *"rarely needed."* The normal export
-already prints correctly in RasterLink.
-
-> **If** a specific job comes back from the RIP with **transparency rendered wrong**
-> → **then** (and only then) try **Flatten with Ghostscript**, and ask whoever
-> maintains the tool first. It re-processes the whole sheet and **takes several
-> minutes** (the app warns you and says to keep the tab open).
-
-> **If** Flatten ever times out or errors → **then** just use the normal **Export
-> print PDF** instead — it's the proven path. Flatten is only a fallback for a RIP
-> transparency problem, which RasterLink doesn't have on this artwork.
-
-You do **not** choose between the two every time. Normal export = done.
-
 ---
 
 ## One-page decision summary (every "If… then…")
@@ -299,8 +283,6 @@ You do **not** choose between the two every time. Normal export = done.
 | Red ✗: *size doesn't match template* | Wrong/rescaled artwork | Get the correct file; never rescale to fit |
 | Red ✗: *piece empty / no artwork* | Missing art or name mismatch | Check that piece's spelling on both sides; confirm art exists |
 | Red ✗: *style mapping problem* | The style is mis-mapped | Fix it in the Mapping Tool; tell the style maintainer |
-| RIP shows transparency wrong | Rare RIP-compat case | Use Flatten with Ghostscript once; otherwise normal export |
-| Flatten times out / errors | Heavy artwork | Use the normal Export print PDF instead |
 
 ---
 

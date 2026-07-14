@@ -308,96 +308,6 @@ async function handleFabrics(req, res) {
   send(res, 404, { error: 'Unknown route' })
 }
 
-// Export post-processing. Ghostscript (if installed) rewrites the export to
-// an older PDF compatibility level, which forces transparency flattening
-// while preserving vectors — the standard fix for RIPs (RasterLink) that
-// reject Illustrator-style transparency. Settings stay adjustable so flatten
-// behavior can be iterated against real RasterLink results.
-const gsVersion = () =>
-  new Promise((resolve) =>
-    execFile('gs', ['--version'], (err, stdout) => resolve(err ? null : stdout.trim())),
-  )
-
-async function handleExport(req, res) {
-  const url = (req.url || '/').split('?')[0]
-
-  if (req.method === 'GET' && url === '/status') {
-    const version = await gsVersion()
-    return send(res, 200, { ghostscript: !!version, version })
-  }
-
-  if (req.method === 'POST' && (url === '/' || url === '')) {
-    const body = await readJsonBody(req)
-    const settings = body.settings || {}
-
-    if (settings.method !== 'ghostscript') {
-      return send(res, 200, {
-        pdf: body.pdf,
-        applied: 'Direct pdf-lib vector output (no transparency flattening)',
-      })
-    }
-
-    // PDF 1.3 predates the transparency model, so pdfwrite must flatten all
-    // transparency to opaque marks while keeping vectors — the one setting we
-    // ship. Higher levels keep transparency live (which RasterLink mis-rips).
-    const compat = '1.3'
-    const id = crypto.randomBytes(6).toString('hex')
-    const inPath = path.join(os.tmpdir(), `capnest-${id}-in.pdf`)
-    const outPath = path.join(os.tmpdir(), `capnest-${id}-out.pdf`)
-    await fs.writeFile(inPath, Buffer.from(body.pdf, 'base64'))
-    const args = [
-      '-dBATCH',
-      '-dNOPAUSE',
-      '-dSAFER',
-      '-sDEVICE=pdfwrite',
-      `-dCompatibilityLevel=${compat}`,
-      '-dPDFSETTINGS=/prepress',
-      '-dColorConversionStrategy=/LeaveColorUnchanged',
-      '-dDownsampleColorImages=false',
-      '-dDownsampleGrayImages=false',
-      '-dDownsampleMonoImages=false',
-      '-dAutoRotatePages=/None',
-      `-sOutputFile=${outPath}`,
-      inPath,
-    ]
-    try {
-      // Flatten is a rare fallback (the default direct-vector export is the
-      // normal path). When it IS used, the heavy soft-mask artwork genuinely
-      // needs ~160s+ to re-rip, so allow a generous timeout rather than failing
-      // a job that would have finished. 10 minutes covers multi-sheet orders.
-      await new Promise((resolve, reject) =>
-        execFile('gs', args, { timeout: 600000 }, (err, _stdout, stderr) => {
-          if (!err) return resolve()
-          if (err.code === 'ENOENT') {
-            return reject(
-              new Error('Ghostscript is not installed — run: brew install ghostscript'),
-            )
-          }
-          if (err.killed) {
-            return reject(
-              new Error(
-                'Ghostscript flatten timed out after 10 minutes — this artwork is unusually heavy. ' +
-                  'Use the default direct-vector export (it already prints correctly in RasterLink).',
-              ),
-            )
-          }
-          reject(new Error(`Ghostscript failed: ${stderr || err.message}`))
-        }),
-      )
-      const outBuf = await fs.readFile(outPath)
-      return send(res, 200, {
-        pdf: outBuf.toString('base64'),
-        applied: `gs ${args.slice(0, -2).join(' ')}`,
-      })
-    } finally {
-      fs.unlink(inPath).catch(() => {})
-      fs.unlink(outPath).catch(() => {})
-    }
-  }
-
-  send(res, 404, { error: 'Unknown route' })
-}
-
 // The host's LAN IPv4 addresses, detected at runtime (never hardcoded — a
 // machine's address can change). Used both for the startup banner and for the
 // "copy office link" button so the operator can hand other machines a link.
@@ -586,7 +496,7 @@ async function handleBackup(req, res) {
 
 // Exported so the standalone LAN server (server/serve.js) can mount the SAME
 // handlers the Vite dev plugin uses — one code path for dev and production.
-export { handle, handleFabrics, handleExport, handleHost, handleBackup, lanAddresses }
+export { handle, handleFabrics, handleHost, handleBackup, lanAddresses }
 // Exported for unit tests (schema migration is subtle; protect it directly).
 export { normalizeStyle, styleCounts }
 
@@ -599,9 +509,6 @@ export default function stylesApi() {
       })
       server.middlewares.use('/api/fabrics', (req, res) => {
         handleFabrics(req, res).catch((err) => send(res, 500, { error: err.message }))
-      })
-      server.middlewares.use('/api/export', (req, res) => {
-        handleExport(req, res).catch((err) => send(res, 500, { error: err.message }))
       })
       server.middlewares.use('/api/host', (req, res) => {
         handleHost(req, res).catch((err) => send(res, 500, { error: err.message }))

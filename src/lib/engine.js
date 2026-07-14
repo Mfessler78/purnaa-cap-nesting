@@ -314,10 +314,9 @@ const MM_TO_PT = 72 / 25.4 // 1 mm in PDF points
 //   2. pdf-lib HARD-CODES "%PDF-1.7" in its writer (PDFWriter), ignoring the
 //      context header — so the version label must be patched in the saved bytes.
 // Everything the engine emits (paths, clips, text, form XObjects, images) is a
-// PDF 1.4 feature, so lowering the label is honest, not a workaround. Heavy
-// customer transparency that RasterLink still mis-rips is handled separately by
-// the optional Ghostscript flatten (which targets 1.3). The header is the literal
-// ASCII "%PDF-1.x" at offset 0; we rewrite the minor digit in place (same length).
+// PDF 1.4 feature, so lowering the label is honest, not a workaround. The header
+// is the literal ASCII "%PDF-1.x" at offset 0; we rewrite the minor digit in
+// place (same length).
 const PDF14_PREFIX = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e] // "%PDF-1."
 function toPdf14(bytes) {
   let ok = bytes.length > PDF14_PREFIX.length
@@ -650,8 +649,8 @@ export async function fillLayout({
   // Embed the artwork page ONCE and share this single form across every slot.
   // Previously it was embedded once per piece type, and pdf-lib copies all of a
   // page's image XObjects into each embed — so the artwork's images were stored
-  // ~(number of types)× over, bloating the file and stalling the Ghostscript
-  // flatten. Here the full page is embedded once; each slot is positioned by
+  // ~(number of types)× over, bloating the file. Here the full page is embedded
+  // once; each slot is positioned by
   // transform and trimmed by clip paths instead of by a per-type embed BBox.
   const embArt = await out.embedPage(artPage)
   // Font for the piece-ID labels lives in the same doc we draw the sheet on.

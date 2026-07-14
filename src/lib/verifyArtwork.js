@@ -34,7 +34,7 @@ export async function checkArtworkRegions(artworkBytes, templatePieces) {
 //      (an unflattened, many-image file rips very slowly in RasterLink).
 //
 // This reads PDF structure only — it changes no pixels, color data, or vectors
-// (invariant §7) and never touches the Ghostscript fallback (invariant §9).
+// (invariant §7).
 // ---------------------------------------------------------------------------
 
 // Read an (often Flate-compressed) stream's decoded bytes, falling back to the

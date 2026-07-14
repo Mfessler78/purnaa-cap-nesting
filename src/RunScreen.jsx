@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import PdfViewer from './PdfViewer.jsx'
-import { listStyles, getStyle, getStylePdfFile, listFabrics, exportStatus, processExport } from './lib/api'
+import { listStyles, getStyle, getStylePdfFile, listFabrics } from './lib/api'
 import { loadPdfPage } from './lib/pdfRender'
 import { fillLayout } from './lib/engine'
 import { checkArtworkRegions, checkArtworkColor } from './lib/verifyArtwork'
@@ -65,7 +65,6 @@ export default function RunScreen() {
   const [report, setReport] = useState(null) // { passed: [], blocking: [] }
   const [result, setResult] = useState(null) // { bytes, pdf, rounded, exportBytes }
   const [approved, setApproved] = useState(false)
-  const [gs, setGs] = useState({ ghostscript: false })
   const [exporting, setExporting] = useState(false)
   const [exportInfo, setExportInfo] = useState(null) // { kind, text }
   const [progress, setProgress] = useState(null) // status text shown during long ops
@@ -73,9 +72,6 @@ export default function RunScreen() {
   useEffect(() => {
     listStyles().then(setStyles).catch(() => setStyles([]))
     listFabrics().then(setFabrics).catch(() => setFabrics([]))
-    // Default stays direct-vector; Ghostscript presence only enables the
-    // flatten option, it does not become the default.
-    exportStatus().then(setGs).catch(() => {})
   }, [])
 
   // Load the selected style's map so we know its cut modes (U3) and template
@@ -241,20 +237,13 @@ export default function RunScreen() {
     }
   }
 
-  // method: 'pdflib' (default, no decision) or 'ghostscript' (rare flatten).
-  async function onExport(method) {
+  async function onExport() {
     setExporting(true)
     setExportInfo(null)
-    const gsFlatten = method === 'ghostscript'
-    setProgress(
-      gsFlatten
-        ? 'Flattening transparency with Ghostscript — this can take several minutes for detailed artwork. Keep this tab open…'
-        : 'Preparing the print PDF…',
-    )
+    setProgress('Preparing the print PDF…')
     try {
       await tick()
-      const { bytes, applied } = await processExport(result.exportBytes, { method })
-      const blob = new Blob([bytes], { type: 'application/pdf' })
+      const blob = new Blob([result.exportBytes], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       const modeTag = result.mode ? ` ${result.mode.toUpperCase()}` : ''
       const a = document.createElement('a')
@@ -273,7 +262,7 @@ export default function RunScreen() {
       }
       setExportInfo({
         kind: 'ok',
-        text: `Exported${result.mode === 'laser' && result.dxf ? ' (PDF + DXF)' : ''}. Applied: ${applied}`,
+        text: `Exported${result.mode === 'laser' && result.dxf ? ' (PDF + DXF)' : ''}.`,
       })
     } catch (err) {
       setExportInfo({ kind: 'error', text: err.message })
@@ -463,24 +452,11 @@ export default function RunScreen() {
                 <button
                   className="primary"
                   disabled={!approved || exporting}
-                  onClick={() => onExport('pdflib')}
+                  onClick={onExport}
                   data-tutorial="run-export"
                 >
                   {exporting ? 'Exporting…' : 'Export print PDF'}
                 </button>
-                {gs.ghostscript && (
-                  <span className="gs-fallback">
-                    <button
-                      className="secondary"
-                      disabled={!approved || exporting}
-                      onClick={() => onExport('ghostscript')}
-                      title="Only if the RIP mishandles transparency. Re-rips the whole sheet; takes several minutes."
-                    >
-                      Flatten with Ghostscript
-                    </button>
-                    <span className="gs-note">Rarely needed — takes several minutes.</span>
-                  </span>
-                )}
               </>
             )}
           </div>

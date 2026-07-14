@@ -2,6 +2,12 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- chore: remove Ghostscript flatten path entirely (owner sign-off) — gs shell-out,
+  `/api/export` endpoint + its passthrough round-trip, `exportStatus`/`processExport`
+  client calls, the "Flatten with Ghostscript" button and its CSS all deleted; export
+  now downloads the direct-vector bytes straight from the browser (bytes unchanged).
+  In-app flatten replacement comes in a follow-up change. Invariant §9 rewritten.
+
 - refactor: retire DXF Tile Export from main — the laser software now ships its own
   nesting utility. The complete tool (RunEntry fork, TileExportScreen, tileInspect/
   tileMath/tileExport + tests, entry-fork CSS, the DXF Tile Export tutorial) is

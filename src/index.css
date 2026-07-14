@@ -419,16 +419,6 @@ button.secondary {
 button.secondary:hover:not(:disabled) {
   background: #f3f3f3;
 }
-.gs-fallback {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.gs-note {
-  font-size: 12px;
-  color: #7a5800;
-}
-
 .subtabs {
   display: flex;
   gap: 6px;

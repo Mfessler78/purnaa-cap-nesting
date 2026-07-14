@@ -13,7 +13,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { handle, handleFabrics, handleExport, handleHost, handleBackup, lanAddresses } from './styles-api.js'
+import { handle, handleFabrics, handleHost, handleBackup, lanAddresses } from './styles-api.js'
 
 // Pinned office port. Documented, never changes — every machine reaches the
 // host at http://<host-ip>:4173. Overridable via env only for local testing.
@@ -83,7 +83,6 @@ async function serveStatic(req, res) {
 const server = http.createServer((req, res) => {
   if (mount(req, res, '/api/styles', handle)) return
   if (mount(req, res, '/api/fabrics', handleFabrics)) return
-  if (mount(req, res, '/api/export', handleExport)) return
   if (mount(req, res, '/api/host', handleHost)) return
   if (mount(req, res, '/api/backup', handleBackup)) return
   serveStatic(req, res)
