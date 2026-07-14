@@ -2,6 +2,17 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- docs: align tutorials with profile + flatten changes — Run Screen tour step 8 now
+  teaches the Adobe RGB (1998) standard and match-RasterLink framing (and the stamp),
+  step 10 explains the guarded flattened export, new step 11 covers "Export without
+  flattening" (spotlights `run-export-plain`), Getting Started's greyed-out-export
+  card names both buttons. Pure step data, no logic. Verified both tours end-to-end
+  headless (all steps render, spotlights land, Esc exits clean).
+
+- fix: export downloads use an in-DOM anchor + deferred URL revoke + 400ms PDF→DXF
+  stagger (one `saveBlob` helper) — owner hit "Export without flattening" reporting
+  success but saving no files; the old pattern could be silently dropped by Chrome.
+
 - feat: guarded flatten-on-export + unflattened export button. Main button is now
   "Export print PDF (flattened)": when the artwork embeds an RGB ICC profile, the
   finished sheets are rasterized in-app (new `src/lib/flattenExport.js`: 300 dpi,
