@@ -88,9 +88,9 @@ const gettingStarted = {
     },
     {
       target: null,
-      title: 'Common errors: the export buttons are greyed out',
+      title: 'Common errors: the export button is greyed out',
       body: [
-        'Both export buttons — "Export print PDF (flattened)" and "Export without flattening" — stay disabled until you tick "I checked the preview below: alignment, rotation, and nothing missing." — that checkbox is the final human check before a file goes to print.',
+        '"Export print PDF" stays disabled until you tick "I checked the preview below: alignment, rotation, and nothing missing." — that checkbox is the final human check before a file goes to print.',
         '"Fill layout" is greyed out until a style, cut mode, fabric and artwork file are all chosen. A cut mode showing "(not mapped)" means that style has no pre-nest mapped for that mode yet.',
       ],
       doneLabel: 'Finish',
@@ -288,8 +288,9 @@ const runScreen = {
       target: 'run-verify',
       title: '8 · Read the verification list',
       body: [
-        'If the artwork’s size matches the template, the fill completes and this list shows what was checked: ✓ passed, ⚠ warnings to read, ✗ blocking problems. Warnings come from the program’s own checks — piece outlines, color profile, missing artwork in a region.',
+        'If the artwork’s size matches the template, the fill completes and this list shows what was checked: ✓ passed, ⚠ warnings to read, ✗ blocking problems. Warnings come from the program’s own checks — piece outlines, color profile, layered artwork, missing artwork in a region.',
         'The color profile check looks for the company standard, Adobe RGB (1998). Any other embedded profile gets a warning: the artwork’s profile needs to match the profile set in RasterLink to keep colors accurate — so either set RasterLink to the profile named in the warning, or have the artwork re-saved in Adobe RGB (1998). The detected profile is also printed on every sheet’s corner stamp.',
+        'A warning about multiple layered/masked images means the file may rip slowly in RasterLink. The program never flattens artwork — the fix is flattening in Photoshop (Layer → Flatten Image) and re-saving before the run.',
       ],
       note: 'A size-mismatch refusal is by design, not a bug: the program never scales artwork to fit. Fix the artwork file (or map a template variant of that size).',
       arrow: 'up',
@@ -302,17 +303,8 @@ const runScreen = {
     },
     {
       target: 'run-export',
-      title: '10 · Export the print PDF (flattened)',
-      body: [
-        'Click "Export print PDF (flattened)" — the normal export. When the artwork has an embedded color profile, the program flattens the finished sheet at full print quality and tags it with that same profile, so RasterLink gets a file with nothing left to mis-read. If the artwork has NO embedded profile, this button exports the regular unflattened file instead — unprofiled artwork is never flattened.',
-        'You receive the print-ready PDF of the nested pattern pieces, named with style, fabric and quantity. On Laser jobs a matching CUT.dxf for the laser downloads automatically alongside it — no extra click.',
-      ],
-      arrow: 'up',
-    },
-    {
-      target: 'run-export-plain',
-      title: '11 · Export without flattening (when needed)',
-      body: 'The second button always exports the unflattened, direct-vector file — the sheet exactly as composed, never rasterized. Use it if a flattened file isn’t wanted for a job; just expect unflattened layered artwork to be slower to load and process in RasterLink.',
+      title: '10 · Export print PDF',
+      body: 'Click "Export print PDF". You receive the print-ready PDF of the nested pattern pieces, named with style, fabric and quantity. On Laser jobs a matching CUT.dxf for the laser downloads automatically alongside it — no extra click.',
       arrow: 'up',
     },
     {

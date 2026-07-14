@@ -2,6 +2,14 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- docs: align tutorials with single export + slow-rip warning — Run Screen tour
+  step 10 back to the one "Export print PDF" button (PDF + laser DXF), the
+  "Export without flattening" step deleted with its `run-export-plain` target,
+  step 8 gains a paragraph matching the slow-rip warning (flatten in Photoshop;
+  the program never flattens), Getting Started's greyed-out card back to the
+  single button. Adobe RGB (1998) tutorial content untouched. Both tours verified
+  end-to-end headless.
+
 - feat: warn on slow-rip layered artwork (flatten in Photoshop). Check B's copy
   replaces the old flatten-button text: same detection (page image count > 1), new
   message names the symptom ("multiple layered/masked images … may rip slowly in
