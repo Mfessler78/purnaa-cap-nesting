@@ -41,6 +41,21 @@ function pickTemplate(templates, artSize) {
 // heavy (CPU-blocking) step runs.
 const tick = () => new Promise((r) => setTimeout(r))
 
+// Trigger a browser download. The anchor must be attached to the DOM for the
+// click to count in every browser, and the object URL must outlive the click's
+// download task — revoking it synchronously can race the save and silently
+// produce no file.
+function saveBlob(name, blob) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
 // Format a PDF page size (points) as the real-world output size in inches AND
 // mm. Read straight off the generated PDF's page box (not recomputed from
 // inputs) so it always equals the file that goes to RasterLink.
@@ -268,22 +283,17 @@ export default function RunScreen() {
       const bytes = doFlatten
         ? await flattenExport({ ...result.flatten, profileBytes: artColor.profileBytes })
         : result.exportBytes
-      const blob = new Blob([bytes], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
       const modeTag = result.mode ? ` ${result.mode.toUpperCase()}` : ''
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${styleId} ${fabricName} qty${result.rounded}${modeTag} PRINT${doFlatten ? ' FLATTENED' : ''}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-      // Laser mode also drops the DXF the cutter reads, alongside the PDF.
+      const baseName = `${styleId} ${fabricName} qty${result.rounded}${modeTag}`
+      saveBlob(
+        `${baseName} PRINT${doFlatten ? ' FLATTENED' : ''}.pdf`,
+        new Blob([bytes], { type: 'application/pdf' }),
+      )
+      // Laser mode also drops the DXF the cutter reads, alongside the PDF —
+      // staggered a beat so the second download isn't coalesced with the first.
       if (result.mode === 'laser' && result.dxf) {
-        const durl = URL.createObjectURL(new Blob([result.dxf], { type: 'application/dxf' }))
-        const da = document.createElement('a')
-        da.href = durl
-        da.download = `${styleId} ${fabricName} qty${result.rounded}${modeTag} CUT.dxf`
-        da.click()
-        URL.revokeObjectURL(durl)
+        await new Promise((r) => setTimeout(r, 400))
+        saveBlob(`${baseName} CUT.dxf`, new Blob([result.dxf], { type: 'application/dxf' }))
       }
       const dxfNote = result.mode === 'laser' && result.dxf ? ' (PDF + DXF)' : ''
       setExportInfo({
