@@ -2,6 +2,17 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- revert: drop in-app flatten, restore single direct-vector export. The raster
+  flatten made exports ~6× larger (1.08 → 6.80 MB on the reference job) and would
+  SLOW RasterLink — the opposite of its goal. Deleted `src/lib/flattenExport.js`,
+  the RunScreen profile guard/`canFlatten`, the two-button split (back to one
+  "Export print PDF" button, PDF + laser DXF), the engine's `flatten` return field
+  (drawStamp/toPdf14 back to internal), and verifyArtwork's `profileBytes` plumbing.
+  Flattening is a customer-side Photoshop step; the app detects and warns only
+  (warning copy updated in the next change). KEPT from today: Ghostscript removal,
+  Adobe RGB (1998)/RasterLink-parity advisory, stamp profile segment, upload-time
+  detection, and the saveBlob download fix.
+
 - docs: align tutorials with profile + flatten changes — Run Screen tour step 8 now
   teaches the Adobe RGB (1998) standard and match-RasterLink framing (and the stamp),
   step 10 explains the guarded flattened export, new step 11 covers "Export without

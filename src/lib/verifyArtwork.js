@@ -114,9 +114,7 @@ function classifyColorSpace(cs, depth = 0) {
       const stream = cs.lookup(1)
       if (stream instanceof PDFRawStream) {
         const bytes = streamBytes(stream)
-        // Keep the raw profile bytes: the in-app flatten re-tags its raster
-        // with this EXACT profile (never a substitute).
-        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes), bytes }
+        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes) }
       }
       return { kind: 'unknown' }
     }
@@ -192,7 +190,7 @@ function outputIntentProfile(doc) {
       const dest = intent.lookup(PDFName.of('DestOutputProfile'))
       if (dest instanceof PDFRawStream) {
         const bytes = streamBytes(dest)
-        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes), bytes }
+        return { kind: 'icc', class: iccClass(bytes), name: iccName(bytes) }
       }
     }
   } catch {
@@ -237,7 +235,6 @@ export async function checkArtworkColor(artworkBytes) {
   let profile = 'unknown'
   let profileName = null
   let profileLabel = null
-  let profileBytes = null
   try {
     const doc = await PDFDocument.load(artworkBytes, { updateMetadata: false })
     const { images, spaces } = collectColorInfo(doc, doc.getPage(0))
@@ -255,7 +252,6 @@ export async function checkArtworkColor(artworkBytes) {
       profile = t.kind === 'icc' ? t.class || 'icc' : 'defined'
       profileName = t.name || null
       profileLabel = labelFor(t)
-      profileBytes = t.bytes || null
       if (isStandard(t)) {
         confirmation =
           `Color profile confirmed: “${t.name}” is embedded — matches the company standard. ` +
@@ -301,7 +297,7 @@ export async function checkArtworkColor(artworkBytes) {
       if (ev) applyTagged(ev)
     }
   } catch {
-    return { warnings: [], confirmation: null, imageCount: 0, profile: 'unknown', profileName: null, profileLabel: null, profileBytes: null }
+    return { warnings: [], confirmation: null, imageCount: 0, profile: 'unknown', profileName: null, profileLabel: null }
   }
-  return { warnings, confirmation, imageCount, profile, profileName, profileLabel, profileBytes }
+  return { warnings, confirmation, imageCount, profile, profileName, profileLabel }
 }

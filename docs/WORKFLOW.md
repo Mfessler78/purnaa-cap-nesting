@@ -264,21 +264,13 @@ missing), tick **"I checked the preview below,"** and move to export.
 
 ## Stage 6 — Export the print-ready PDF
 
-There are two export buttons:
+**Click "Export print PDF."** That's the normal, correct export for RasterLink. It
+downloads a print-ready PDF named with the style, fabric, and quantity (and on Laser
+jobs the CUT.dxf for the laser alongside it). Open it in RasterLink and print.
 
-**"Export print PDF (flattened)"** — the normal button. When the artwork has an
-embedded color profile, the program flattens the finished sheet for you at full
-print quality (300 dpi, lossless) and tags it with the artwork's own profile, so
-RasterLink gets a file with nothing left to mis-interpret. If the artwork has **no**
-embedded profile, this button quietly exports the regular unflattened file instead —
-the program never flattens unprofiled artwork.
-
-**"Export without flattening"** — always the direct-vector file, exactly as
-composed. Use it if a flattened file is ever not wanted; expect unflattened layered
-artwork to be slower to load and process in RasterLink.
-
-Both download a print-ready PDF named with the style, fabric, and quantity (the
-flattened one says FLATTENED in the filename). Open it in RasterLink and print.
+The program never flattens artwork. If the verification list warns that a file is
+heavily layered (slow to rip in RasterLink), the fix happens in Photoshop before the
+run: Layer → Flatten Image, re-save, upload again.
 
 ---
 
