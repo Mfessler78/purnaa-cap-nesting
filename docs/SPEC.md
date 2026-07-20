@@ -26,6 +26,12 @@ Each **style** (identified by a style number) consists of three stored assets:
 
 Styles are saved on disk and selectable from a dropdown. New styles are created via the Mapping Tool.
 
+Since U2/U3 a style can hold **multiple template size variants** (the run screen
+auto-selects the variant whose page size exactly matches the uploaded artwork —
+selection, never scaling) and **one pre-nest + slot map per cut mode** (Die cut and
+Laser need different spacing). The stored `style.json` carries `templates[]` and
+`prenests{die,laser}` accordingly.
+
 ## Part 1 — Mapping Tool (build the manual version first; auto-detect is M6)
 
 Creating a style:
@@ -55,8 +61,11 @@ Engine, for each pre-nest slot needed:
 
 ### Replication and quantity
 - One customer artwork per piece_type is the single source, fanned out into every matching slot.
-- Round the entered quantity UP to the next multiple of 12 that is ≥ the quantity.
-- Fill slots up to that count; any pre-nest slots beyond the needed count are REMOVED from output (discard unfilled slots).
+- Nest WHOLE sheets only — round the entered quantity DOWN to a multiple of the
+  sheet's cap count (normally 12), warn that the remainder is produced separately
+  in the regular (non-nested) format, and block an order under one sheet (nothing
+  to nest). (Was round-UP pre-U1; `roundDownToSheet` in `engine.js`.)
+- Every exported sheet is identical and completely filled.
 
 ### No scaling to fit
 - Customer artwork and template piece MUST be the exact same physical scale.
@@ -66,26 +75,47 @@ Engine, for each pre-nest slot needed:
 
 ### Fabric stretch scaling
 - After placement, apply the selected fabric's scale factor UNIFORMLY to the entire output sheet. This is the only scaling step.
-- (Open question to confirm with me before building M3: is the stretch uniform, or different per axis (warp vs weft)? If per-axis, support an X-factor and Y-factor per fabric. Default to uniform unless I say otherwise.)
+- (Resolved by owner decision: the stretch is UNIFORM — one factor per fabric, no per-axis warp/weft split.)
 
 ### Metadata stamp
 - Print a small but readable text stamp ONCE, in the top-left or top-right corner of the full nested sheet:
-  `STYLE | FABRIC | QTY`
+  `STYLE | FABRIC | QTY | MODE | COLOR PROFILE` (mode = Die cut/Laser; profile = the
+  name detected in the uploaded artwork, or "No profile").
+- Separately, each panel carries a small per-piece ID label inside its seam band
+  (reference for the cut/sew team; see ARCHITECTURE §2 step 6b).
 
 ### Verification gate (M4)
 - Before export, show a visual preview of the filled, rotated, stamped layout so the operator confirms alignment and that nothing is missing/misoriented.
 - Export only on explicit approval.
 - If the engine detects an unmatched piece_type, missing artwork, or scale mismatch, surface these as BLOCKING warnings on this screen.
+- Detect-only advisories (WARN, never block), checked at artwork upload:
+  - **Color profile:** Adobe RGB (1998) — the company standard — confirms by name;
+    any other embedded profile (or none) warns to match the profile set in
+    RasterLink (parity framing, never a color-shift claim). The detected name is
+    printed on the export stamp.
+  - **Slow rip:** multiple layered/masked images on the page → warn that the file
+    may rip slowly in RasterLink; the fix is flattening in Photoshop before upload.
+    The app itself NEVER flattens.
 
 ### Export (M5)
-- Output a FLATTENED, vector PDF optimized for RasterLink compatibility: flatten transparency, no live effects, non-cut guide layers/fills removed, vector preserved. **Black cut lines are preserved for the laser** (see `CLAUDE_CODE_LASER_VS_DIECUT.md`) — the app draws a 1.5 mm black cut line per piece.
-- Context: Illustrator-native PDFs often fail in RasterLink due to transparency and effects. The export must produce a flattened PDF RasterLink reliably interprets. Make flatten settings easy to adjust so we can iterate against real RasterLink behavior.
+- Output the DIRECT-VECTOR composition — the only export path. The app never
+  flattens (the Ghostscript fallback was removed entirely and the short-lived
+  in-app raster flatten was reverted the same day, 2026-07-14 — it made files ~6×
+  larger). Heavy layered artwork is flattened customer-side in Photoshop before
+  upload; the app only detects and warns (see the advisories above).
+- The PDF is written as version 1.4 with a classic xref table (RasterLink-proven)
+  and downloads straight from the browser. Non-cut guide layers/fills are removed;
+  vectors preserved. **Black cut lines are printed for LASER runs only** (the
+  laser follows them; a die-cut run prints no cut line — the die cuts the shape);
+  see `CLAUDE_CODE_LASER_VS_DIECUT.md`. Laser runs also download a CUT.dxf with
+  the cut contours alongside the PDF.
 
 ## Hard rules (restate; do not violate)
 - Match by piece_type; replicate one source into all matching slots.
 - Rotation is per-slot, read from the map.
 - Never scale to fit; fabric stretch is the only scaling, applied globally at export.
-- Black cut lines ARE printed/exported (the laser follows them; die-cut ignores them) — see `CLAUDE_CODE_LASER_VS_DIECUT.md`. Other guides (stitch lines, text, color fills) never print.
+- Black cut lines ARE printed on laser exports (the laser follows them); die-cut exports print NO cut line — see `CLAUDE_CODE_LASER_VS_DIECUT.md`. Other guides (stitch lines, text, color fills) never print.
+- The app never flattens artwork; direct-vector export is the only path.
 - Keep UI minimal; make the human-verification steps clear.
 - Local only: no cloud, no auth, no deployment.
 

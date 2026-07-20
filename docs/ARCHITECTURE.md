@@ -9,7 +9,11 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-14 (evening: the same-day in-app flatten-on-export was
+> Last updated: 2026-07-20 (pdf.js document lifecycle: `loadPdfPage` now returns a
+> `destroy()` handle and every caller releases its doc when done — see the
+> pdfRender row in §4. Fixes the ~8GB-per-session tab memory leak. Also corrected
+> `pdfPaths.js`'s dependency (pdf-lib, not pdfjs-dist) and marked two §6 cleanup
+> targets resolved. Previous: 2026-07-14 (evening: the same-day in-app flatten-on-export was
 > REVERTED — the raster flatten made files ~6× larger, the opposite of the intended
 > RasterLink speed-up. The app is back to ONE export button running the single
 > direct-vector path; the app never flattens — flattening is a customer-side
@@ -18,8 +22,8 @@
 > and the color-profile advisory re-keyed to Adobe RGB (1998) — the company
 > standard confirms, anything else embedded draws a RasterLink-parity warning,
 > detection runs at artwork upload, and the profile name is printed on the export's
-> corner stamp. Previous: 2026-07-13 DXF Tile Export retired to fork branch
-> `dxf-tile-tool`).
+> corner stamp. 2026-07-13: DXF Tile Export retired to fork branch
+> `dxf-tile-tool`.)
 > Update the date when you change this file.
 
 ---
@@ -204,8 +208,8 @@ Use this to see the blast radius before editing.
 | `src/lib/engine.js` | The fill pipeline (place, rotate, clip, stamp, scale, multi-sheet) | `pdf-lib`, `pdfGeometry`, `pdfPaths` | `RunScreen.jsx` |
 | `src/lib/verifyArtwork.js` | Pre-export checks: region presence/size (blocking) + color-profile advisory (Adobe RGB (1998) confirms; any other embedded profile warns to match RasterLink's setting; never blocks; also feeds the stamp's profile segment) & slow-rip advisory (multi-image layered file → flatten in Photoshop) | `pdf-lib`, `pdfRender`/`scanRegions` (lazy, DOM-only) | `RunScreen.jsx`, `engine.js` |
 | `src/lib/pdfGeometry.js` | Box/transform/rotation math | — (leaf) | engine, verify, editors |
-| `src/lib/pdfPaths.js` | Vector path extraction from PDFs | `pdfjs-dist` | engine, detectRegions |
-| `src/lib/pdfRender.js` | Rasterize PDF pages for display | `pdfjs-dist` | `PdfViewer.jsx` |
+| `src/lib/pdfPaths.js` | Vector path extraction from PDFs | `pdf-lib` | engine, detectRegions, MappingTool |
+| `src/lib/pdfRender.js` | Load/rasterize PDF pages for display (the ONLY `getDocument()` site) | `pdfjs-dist` | `RunScreen.jsx`, `MappingTool.jsx`, `verifyArtwork.js` (lazy), `PdfViewer.jsx`/`PdfBoxEditor.jsx` (render only) |
 | `src/lib/detectRegions.js` | Auto-detect closed-path slots | `pdfPaths`, `scanRegions` | `MappingTool.jsx` |
 | `src/lib/scanRegions.js` | Region scan support | `pdfPaths` | `detectRegions` |
 | `src/lib/dxf.js` | DXF / laser geometry | `pdfGeometry` | engine / laser path |
@@ -214,6 +218,20 @@ Use this to see the blast radius before editing.
 | `src/lib/api.js` | Talk to `server/` middleware | fetch | screens |
 | `src/lib/pdriveSync.js` | P-drive style sync: computer-id, machine-level sync-root memory, content hash, append-only events, replay, seed, reconcile, publish (Node-only) | `node:fs/os/path/crypto` | `server/styles-api.js`, `scripts/pdrive-*.js` |
 | `server/styles-api.js` | Persist styles/fabrics; on save/delete, publish the style to the P-drive sync root | `pdf-lib`, `pdriveSync` | `api.js` |
+
+**pdf.js document lifecycle (memory).** pdf.js keeps every loaded document's decoded
+fonts/images/streams alive on its worker until the document is explicitly destroyed —
+dropping the JS reference frees nothing (pre-fix this leaked ~8GB per session).
+`loadPdfPage` therefore returns `{ page, width, height, originX, originY, destroy }`,
+where `destroy()` tears down the loading task (the pdf.js v5+ API — the document proxy
+no longer has its own destroy). **The caller owns the doc**: transient uses destroy
+immediately after reading (RunScreen's artwork size measure; `checkArtworkRegions`'s
+offscreen render, via try/finally); the Run preview doc is destroyed by an effect when
+the result is replaced/cleared or the screen unmounts; MappingTool registers every doc
+it creates in a `liveDocs` ref (docs migrate between active buffers and the mode/variant
+stashes, so ownership can't follow one state slot), destroys at the true discard events
+(upload replacing a buffer, style load replacing the set, variant removal), and sweeps
+the rest on unmount. Never call `getDocument()` outside `pdfRender.js`.
 
 **Rule of thumb:** `pdfGeometry.js` is a leaf — safe-ish to optimize internally but
 widely depended on, so its behavior must not change. `engine.js` is the highest-risk file
@@ -244,6 +262,12 @@ over the sorted `relPath+bytes` of a style folder, so unchanged styles are skipp
 is LAN file sync on the existing P-drive channel — **no cloud, no service** (invariant §10
 intact). Local saves always succeed; if the P drive is unreachable the publish is skipped
 and the UI warns the change isn't shared yet.
+
+**What travels by git vs. the P drive.** `styles/` and `AI files of PRENEST and
+TEMPLATES/` are gitignored (private customer/production data) — styles move between
+machines ONLY via the P-drive sync above. The one piece of shared data in git is
+`data/fabrics.json`; `data/backup.json` (the sync-root path) is host-local and
+gitignored. Program code travels via git/GitHub (the update launcher).
 
 ---
 
@@ -290,12 +314,11 @@ These are the reason the output is correct. Full rationale in
 These are bloat/hygiene issues to resolve carefully during the optimization phase. Each
 should be its own small, confirmed change. **Do not bulk-delete.**
 
-- **`node/` is a committed Node.js runtime** (full openssl/v8 header trees, npm, etc.).
-  This almost certainly should be git-ignored, not in the repo. Confirm with owner before
-  removing from version control. Same question for `node_modules/` and `dist/`.
-- **Duplicate update plans:** `CLAUDE_CODE_UPDATE_PLAN.md` exists at repo root *and* in
-  `docs/archive/`. Root copy should move to `docs/` or `docs/archive/`. The root is for
-  config and the `COMMAND CENTER/` launcher folder only.
+- ~~**`node/` is a committed Node.js runtime.**~~ Resolved: `node/`, `node_modules/`,
+  and `dist/` are no longer git-tracked (0 tracked files; the `node/` folder still
+  exists on disk but is ignored).
+- ~~**Duplicate update plans.**~~ Resolved: the root `CLAUDE_CODE_UPDATE_PLAN.md` is
+  gone; the plans live only in `docs/archive/`.
 - **Possible duplicate prenest source:** `AI files of PRENEST and TEMPLATES/60203-DADHAT/`
   contains both `DADHAT(OSFM)_PRENEST.ai` and `pur60203-DADHAT(OSFM)_PRENEST.ai`. Confirm
   which is canonical; remove the stale one.

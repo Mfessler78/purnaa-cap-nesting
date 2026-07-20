@@ -12,6 +12,8 @@ All documentation for the project lives in this folder. Start here.
 | **Understand why the app exists and how it was built** | [`ORIGIN.md`](ORIGIN.md) |
 | **Understand the laser cut-line rule** (intentional reversal) | [`CLAUDE_CODE_LASER_VS_DIECUT.md`](CLAUDE_CODE_LASER_VS_DIECUT.md) |
 | **Read the functional specification** | [`SPEC.md`](SPEC.md) |
+| **Understand the code structure & invariants** (before editing code) | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| **See what changed recently** | [`CHANGELOG.md`](CHANGELOG.md) |
 | **See the cleanup/audit pass record** | [`CLAUDE_CODE_CLEANUP_AUDIT.md`](CLAUDE_CODE_CLEANUP_AUDIT.md) (the plan) and [`CLEANUP_AUDIT_FINDINGS.md`](CLEANUP_AUDIT_FINDINGS.md) (the Phase 1 report) |
 
 The project's operating rules for the coding assistant are kept on the owner's master

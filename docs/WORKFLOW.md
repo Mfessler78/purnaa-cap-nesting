@@ -60,10 +60,12 @@ fabric stretch, and exports.
    both sides — never by where they sit on the page.
 3. **Rotation lives on each slot.** Each slot remembers its own turn (0, 90, 180, or
    270°). Two slots of the same piece can be turned differently.
-4. **Cut lines print; other guides don't.** The tool draws a **black cut line**
-   (1.5 mm) around every piece in the export — the laser follows it, and die-cut
-   operators just ignore it. Stitch lines, instructional text, and color fills are
-   still for humans only: keep them on their own layers; the tool ignores them and
+4. **Cut lines print on laser runs; other guides never print.** On a **Laser** run
+   the tool draws a **black cut line** (1.5 mm) around every piece in the export —
+   the laser follows it (a CUT.dxf downloads alongside the PDF). On a **Die cut**
+   run no cut line is printed at all — the die cuts the shape, so a printed line
+   would just be unwanted ink. Stitch lines, instructional text, and color fills
+   are for humans only: keep them on their own layers; the tool ignores them and
    strips them from the output.
 
 ---
@@ -91,9 +93,11 @@ each piece in its correct upright orientation.
    fills go on **different** layers from the outlines. They're reference only.
 5. **Label each piece clearly for the customer** (visible text like "FRONT" so they
    know where to put art). Keep that text on a guide layer — it won't print.
-6. **Save as PDF**, vectors intact (do **not** flatten — flattening only happens at
-   the very end, inside the app). This PDF is what you send the customer **and** what
-   you'll later load as the style's template.
+6. **Save as PDF**, vectors intact. This PDF is what you send the customer **and**
+   what you'll later load as the style's template. (The app never flattens anything —
+   its export is always the direct-vector composition. The only flattening in the
+   whole workflow is the customer-side Photoshop step for heavily layered *artwork*,
+   done before upload when the app warns about it.)
 
 > **If** a piece has no clean closed outline (just loose lines or an open path) →
 > **then** the app later can't clip that piece to its true shape and falls back to a
@@ -142,8 +146,8 @@ caps' worth** of panels, each turned to nest tightly.
    `slots`/`outlines` layer. Cut lines, stitch lines, text, and fills go on separate
    guide layers.
 4. **Leave room in a top corner for the stamp.** The app prints a small
-   `STYLE | FABRIC | QTY` stamp in a top corner of the sheet — keep that corner
-   clear.
+   `STYLE | FABRIC | QTY | MODE | COLOR PROFILE` stamp in a top corner of the
+   sheet — keep that corner clear.
 5. **Save as PDF**, vectors intact, not flattened. This is the style's pre-nest file.
 
 > **If** the layout is wider than 58" → **then** it won't fit the printer. Re-nest
@@ -220,14 +224,18 @@ minutes.
 1. **Style** — pick the style number for this order.
 2. **Fabric** — pick the fabric. This sets the stretch percentage automatically; you
    don't type a number. (Fabrics and their stretch % live in an editable table.)
-3. **Quantity** — type how many caps. The tool rounds **up** to a full sheet of 12
-   and prints whole sheets. *(50 caps → 60 → 5 identical sheets. 13 → 24 → 2 sheets.)*
+3. **Quantity** — type how many caps. The tool prints **whole sheets only** and
+   rounds **down** to full sheets of 12; it tells you the remainder is produced
+   separately in the regular (non-nested) format. *(50 caps → 48 nested on 4
+   identical sheets + a note that 2 are made separately. An order under one full
+   sheet is blocked — there's nothing to nest.)*
 4. **Customer artwork PDF** — upload the **Mila-approved** file from Stage 2.
 5. **Leave "Clip artwork to piece outlines" ticked, Bleed at 0.25", and Cut line at
    1.5 mm.** These are correct for almost every job; you don't normally change them.
    (Bleed grows each clip slightly outward so every piece keeps its own print bleed.
-   Cut line is the black outline the laser follows, drawn around every piece — die
-   cut just ignores it. The exact width is confirmed at the laser install.)
+   Cut line is the black outline the laser follows, drawn around every piece on
+   Laser runs — on Die cut runs the field is hidden and no line is printed. The
+   exact width is confirmed at the laser install.)
 6. Click **Fill layout** and wait. A spinner shows progress; large artwork can take a
    moment — that's normal, not frozen.
 
@@ -241,8 +249,17 @@ After Fill layout you get a checklist:
 
 - **✓ green** — good (art found for every piece, sizes match, pieces clipped to their
   true shape, quantity and fabric applied).
-- **⚠ amber** — a heads-up, not a stop. Most common: a piece used a rectangle instead
-  of its true outline — fine for simple shapes, worth a glance on curved ones.
+- **⚠ amber** — a heads-up, not a stop. The ones you'll see:
+  - a piece used a rectangle instead of its true outline — fine for simple shapes,
+    worth a glance on curved ones;
+  - **color profile** — artwork not tagged with the company standard **Adobe RGB
+    (1998)** (or tagged with nothing). Colors stay accurate when the file's profile
+    matches the profile set in RasterLink — set RasterLink to match, or have the
+    file re-saved in Adobe RGB (1998). When the standard profile IS embedded you
+    get a green ✓ naming it instead;
+  - **slow rip** — the artwork has multiple layered/masked images and may rip
+    slowly in RasterLink. The fix is in Photoshop before the run (Layer → Flatten
+    Image, re-save, upload again) — the app itself never flattens.
 - **✗ red** — **stop. Export is blocked until it's fixed.**
 
 > **If** it says *artwork size doesn't match the template* (red ✗) → **then** you have
@@ -307,7 +324,8 @@ run: Layer → Flatten Image, re-save, upload again.
   export — the **only** scaling the tool ever does.
 - **Bleed:** a small outward margin (default 0.25") so each clipped piece keeps its
   own print bleed.
-- **Stamp:** the small `STYLE | FABRIC | QTY` label printed once in a top corner.
+- **Stamp:** the small `STYLE | FABRIC | QTY | MODE | COLOR PROFILE` label printed
+  once in a top corner.
 
 ---
 

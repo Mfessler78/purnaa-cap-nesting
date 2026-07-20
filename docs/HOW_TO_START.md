@@ -67,8 +67,8 @@ or per-browser copy to keep in sync, and nothing is stored in the cloud.
 > **Important:** the app must always run from the host's **own local hard drive** —
 > never from a network drive, the P drive, or a cloud-synced folder (Dropbox,
 > OneDrive, Google Drive). Running off a synced folder can make the style list go
-> blank or half-saved. The P drive is for **backups only** (see "Backing up"),
-> never for running the program.
+> blank or half-saved. The P drive is for **sharing styles between machines only**
+> (see "Sharing & safeguarding styles"), never for running the program.
 
 **One person edits styles at a time.** The app does not lock styles, so if two
 people opened the *same* style in the Mapping Tool and both saved, the **last save
@@ -124,24 +124,28 @@ is left in the background.
 
 ---
 
-## Backing up (built into the app)
+## Sharing & safeguarding styles (the P-drive sync folder)
 
-All the mapped styles and the fabric list live **only** on the host computer. If
-that computer dies and there's no backup, every style has to be re-mapped by hand.
-The app handles backups for you — look at the **bar along the bottom** of the app.
+All the mapped styles live on each computer's own hard drive, and they **share
+automatically** through one folder on the P drive. There is no "back up now"
+button and no schedule to remember — the **bar along the bottom** of the app just
+holds the **sync folder** setting:
 
-**The bottom bar shows:**
-- **Last backed up: [date]** — when the last backup ran. If it ever says **"Never
-  backed up"** or the date looks old, that's your cue to click "Back up now."
-- **Back up now** — click any time to save a fresh backup immediately.
-- **Backup folder** — where backups are saved (the P drive). Click **Set / Change**
-  to set it.
+- **Saving or deleting a style shares it automatically.** Every save publishes the
+  style to the sync folder; other computers pick it up the next time someone runs
+  **Retrieve New Styles from P Drive** (in `COMMAND CENTER`).
+- **If the P drive isn't connected when you save**, the local save still works and
+  the app warns you the change wasn't shared yet — save again (or re-save later)
+  once the drive is connected.
+- **Recovery copies are kept automatically.** The sync folder keeps dated copies of
+  every changed and every deleted style under its own `backups/` — nothing is ever
+  silently lost. (Those copies are for recovery only; the app and Retrieve never
+  read them as a sync source.)
 
-**One-time:** click **Set**, then **Browse…** to pick the backup folder in a normal
-folder window (it opens on the host computer's screen). You can also type the path.
-The app checks it can write there and remembers it. Each backup is saved as its
-**own dated folder** (e.g. `capnest-backup-2026-06-16-093000`), so old backups are
-never overwritten — "restore from last Tuesday" is always possible.
+**One-time:** click **Set**, then **Browse…** to pick the sync folder in a normal
+folder window. You can also type the path. The app checks it can write there and
+remembers it — per app copy **and** per machine, so Retrieve finds it even when the
+app is closed.
 
 > **Use a folder path, not a web address.** A network share must be given as a
 > *file path*, not a `smb://…` / `http://…` URL:
@@ -151,24 +155,15 @@ never overwritten — "restore from last Tuesday" is always possible.
 >   `smb://192.168.10.20/Purnaa`), then it appears under `/Volumes/Purnaa/...`.
 >
 > Easiest is to click **Browse…** and pick it — that always gives a valid path. If
-> you paste a `smb://…` URL the app now refuses it and explains why.
+> you paste a `smb://…` URL the app refuses it and explains why.
 
-**Automatic weekly backup:** when the app is opened and **a week has passed** since
-the last backup (and something changed), it backs up **automatically and silently**.
-You'll also be offered a backup right after you **create a new style**.
+**To restore / set up a machine's styles:** run **install** (one-time setup below),
+start the app once to set the sync folder if asked, then run **Retrieve New Styles
+from P Drive**. Every shared style comes down; the fabric list travels with the
+program itself.
 
-> **Honest limitation:** the weekly backup only happens **when the app is opened**.
-> If the host was off when the week ticked over, it backs up the next time the app is
-> opened — "weekly" means "checked the next time it's opened after a week." That's why
-> the **"Last backed up" date is always shown**: if it ever looks old, just click
-> **"Back up now."**
-
-**To restore** (on a new or repaired computer): finish the one-time setup, then copy
-the `styles` and `data` folders **out of** a dated backup folder and **into** the app
-folder, replacing the empty ones. Start the app — every style and fabric is back.
-
-> A terminal alternative also exists (`npm run backup`, or
-> `npm run backup -- "P:\CapNestBackups"`), but the bottom bar is the everyday way.
+> The owner also keeps a separate whole-program backup (`npm run backup` /
+> the owner-only backup launcher) — that's not part of daily use.
 
 ---
 
@@ -203,6 +198,6 @@ computer, open the **`COMMAND CENTER`** folder and:
 **Optional, recommended on the host:**
 - Set the host to a **fixed IP** and add `start.bat` to Windows startup so it launches
   on boot (`Win + R` → `shell:startup` → paste a shortcut to `start.bat`).
-- Keep the styles backed up to the P drive (bottom bar → "Back up now"), so a new
-  machine can be set up with **install** and then catch up with **Retrieve New Styles
-  from P Drive**.
+- Make sure the sync folder is set (bottom bar) so every style save shares to the
+  P drive automatically — then a new machine can be set up with **install** and
+  catch up with **Retrieve New Styles from P Drive**.

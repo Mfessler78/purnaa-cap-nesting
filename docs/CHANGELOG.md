@@ -2,6 +2,17 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- fix (2026-07-20): destroy pdf.js docs when done — frees worker-side memory. The
+  browser tab climbed to ~8GB per session because no `PDFDocumentProxy` was ever
+  destroyed (pdf.js holds decoded fonts/images on its worker until an explicit
+  destroy; since v5 that lives on the loading task). `loadPdfPage` now returns a
+  `destroy()` handle; RunScreen's size-measure doc and `checkArtworkRegions`'s
+  scan doc are destroyed right after use, the Run preview doc on replace/reset/
+  unmount (effect), and MappingTool tracks every doc in a registry — destroying on
+  upload-replace, style-load-replace, variant removal, and sweeping on unmount.
+  `onLoadStyle` reordered so a failed load keeps the displayed docs alive.
+  ARCHITECTURE §4 documents the lifecycle; operating rule added to CLAUDE.md §5.
+
 - docs: align tutorials with single export + slow-rip warning — Run Screen tour
   step 10 back to the one "Export print PDF" button (PDF + laser DXF), the
   "Export without flattening" step deleted with its `run-export-plain` target,
