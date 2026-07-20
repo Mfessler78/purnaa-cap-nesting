@@ -121,6 +121,14 @@ export default function RunScreen() {
 
   const availableModes = meta ? Object.keys(meta.prenests || {}) : []
 
+  // The preview doc holds worker-side pdf.js memory as long as it's displayed.
+  // Destroy it whenever it's replaced, cleared (resetOutput), or this screen
+  // unmounts. An in-flight PdfViewer render rejects on destroy — already caught.
+  useEffect(() => {
+    const pdf = result?.pdf
+    return () => pdf?.destroy()
+  }, [result])
+
   // Any input change invalidates the previous fill and its approval.
   function resetOutput() {
     setResult(null)
@@ -151,7 +159,9 @@ export default function RunScreen() {
       if (!prenestEntry) throw new Error(`This style has no "${MODE_LABELS[mode] || mode}" pre-nest mapped.`)
 
       // U2: measure the artwork and SELECT the matching-size template variant.
+      // Measurement only — the dims are plain numbers that survive destroy.
       const artPage = await loadPdfPage(artwork.bytes)
+      artPage.destroy()
       const pick = pickTemplate(styleMeta.templates || [], { width: artPage.width, height: artPage.height })
       if (pick.error) {
         setReport({ passed: [], blocking: [pick.error], warnings: [] })

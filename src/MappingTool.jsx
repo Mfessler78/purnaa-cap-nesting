@@ -64,6 +64,30 @@ export default function MappingTool() {
   const [confirmDelete, setConfirmDelete] = useState(null) // style id awaiting delete confirmation
   const lastSlotDefaults = useRef({ pieceType: '', rotation: 0 })
 
+  // Every pdf.js doc this screen creates is registered here. Docs migrate
+  // between the active buffers and the mode/variant stashes without dying, so
+  // per-state cleanup can't track them — instead the true discard events
+  // (upload replacing a buffer, style load replacing the whole set, variant
+  // removal) call destroyPdf, and unmount sweeps whatever is still live.
+  const liveDocs = useRef(new Set())
+  function trackPdf(pdf) {
+    liveDocs.current.add(pdf)
+    return pdf
+  }
+  // data is a { bytes, pdf, name } buffer (or null/undefined).
+  function destroyPdf(data) {
+    if (!data?.pdf) return
+    liveDocs.current.delete(data.pdf)
+    data.pdf.destroy()
+  }
+  useEffect(() => {
+    const docs = liveDocs.current
+    return () => {
+      for (const pdf of docs) pdf.destroy()
+      docs.clear()
+    }
+  }, [])
+
   const refreshStyles = () =>
     listStyles().then(setStyles).catch(() => setStyles([]))
   useEffect(() => {
@@ -94,12 +118,14 @@ export default function MappingTool() {
     setMessage(null)
     try {
       const bytes = new Uint8Array(await file.arrayBuffer())
-      const pdf = await loadPdfPage(bytes)
+      const pdf = trackPdf(await loadPdfPage(bytes))
       const data = { bytes, pdf, name: file.name }
       if (which === 'prenest') {
+        destroyPdf(prenest)
         setPrenest(data)
         setDetectedSlots([])
       } else {
+        destroyPdf(template)
         setTemplate(data)
         setTplPageSize({ width: pdf.width, height: pdf.height }) // measured for U2 size-match
         setDetectedPieces([])
@@ -161,6 +187,7 @@ export default function MappingTool() {
 
   function removeTemplateVariant(id) {
     if (tplIds.length <= 1) return
+    destroyPdf(id === tplId ? template : tplStash[id]?.template)
     const remaining = tplIds.filter((x) => x !== id)
     setTplStash((st) => {
       const next = { ...st }
@@ -383,7 +410,7 @@ export default function MappingTool() {
       const tplEntries = await Promise.all(
         variants.map(async (t) => {
           const bytes = await getStylePdfFile(loadChoice, t.template_pdf)
-          const pdf = bytes ? await loadPdfPage(bytes) : null
+          const pdf = bytes ? trackPdf(await loadPdfPage(bytes)) : null
           return {
             id: t.id,
             template: bytes ? { bytes, pdf, name: t.template_pdf } : null,
@@ -392,23 +419,13 @@ export default function MappingTool() {
           }
         }),
       )
-      const tIds = tplEntries.map((e) => e.id)
-      setTplIds(tIds)
-      setTplId(tIds[0])
-      setTemplate(tplEntries[0].template)
-      setTemplatePieces(tplEntries[0].pieces)
-      setTplPageSize(tplEntries[0].pageSize)
-      const tStash = {}
-      for (const e of tplEntries.slice(1)) tStash[e.id] = { template: e.template, pieces: e.pieces, pageSize: e.pageSize }
-      setTplStash(tStash)
-
       // Pre-nest per cut mode (U3): fetch each mode's PDF + slots.
       const modes = Object.keys(meta.prenests || {})
       const preEntries = await Promise.all(
         modes.map(async (mode) => {
           const data = meta.prenests[mode]
           const bytes = await getStylePdfFile(loadChoice, data.prenest_pdf)
-          const pdf = bytes ? await loadPdfPage(bytes) : null
+          const pdf = bytes ? trackPdf(await loadPdfPage(bytes)) : null
           return {
             mode,
             prenest: bytes ? { bytes, pdf, name: data.prenest_pdf } : null,
@@ -422,6 +439,24 @@ export default function MappingTool() {
           }
         }),
       )
+      // Both fetches succeeded — the previous working set (active buffers +
+      // both stashes) is replaced wholesale below; free every doc it holds.
+      // (On a failed load above, the old set stays displayed, so stays alive.)
+      destroyPdf(prenest)
+      destroyPdf(template)
+      for (const e of Object.values(prenestStash)) destroyPdf(e.prenest)
+      for (const e of Object.values(tplStash)) destroyPdf(e.template)
+
+      const tIds = tplEntries.map((e) => e.id)
+      setTplIds(tIds)
+      setTplId(tIds[0])
+      setTemplate(tplEntries[0].template)
+      setTemplatePieces(tplEntries[0].pieces)
+      setTplPageSize(tplEntries[0].pageSize)
+      const tStash = {}
+      for (const e of tplEntries.slice(1)) tStash[e.id] = { template: e.template, pieces: e.pieces, pageSize: e.pageSize }
+      setTplStash(tStash)
+
       const activeMode = modes.includes('laser') ? 'laser' : modes[0] || 'laser'
       const active = preEntries.find((e) => e.mode === activeMode) || { prenest: null, slots: [] }
       setPrenestMode(activeMode)

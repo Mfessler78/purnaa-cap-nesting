@@ -13,12 +13,16 @@ export async function checkArtworkRegions(artworkBytes, templatePieces) {
     import('./scanRegions'),
   ])
   const pdf = await loadPdfPage(artworkBytes)
-  const maxDim = 2200
-  const scale = Math.min(maxDim / pdf.width, maxDim / pdf.height, 2)
-  const canvas = document.createElement('canvas')
-  await startRender(pdf.page, canvas, scale).promise
-  const ctx = canvas.getContext('2d')
-  return scanRegions(ctx, canvas.width, canvas.height, pdf, scale, templatePieces)
+  try {
+    const maxDim = 2200
+    const scale = Math.min(maxDim / pdf.width, maxDim / pdf.height, 2)
+    const canvas = document.createElement('canvas')
+    await startRender(pdf.page, canvas, scale).promise
+    const ctx = canvas.getContext('2d')
+    return scanRegions(ctx, canvas.width, canvas.height, pdf, scale, templatePieces)
+  } finally {
+    pdf.destroy()
+  }
 }
 
 // ---------------------------------------------------------------------------
