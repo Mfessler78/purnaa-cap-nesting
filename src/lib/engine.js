@@ -334,23 +334,50 @@ function toPdf14(bytes) {
 // printed past the cut), falling back to the piece box when no outline matched.
 // CMYK 0,0,0,1 is pure (non-rich) black; emit AFTER the clip is popped so the
 // full line width shows, not just the inner half.
-function cutLineOpsFor(t, ax, ay, rotation, outline, lineWidthPts) {
+//
+// `align` ('center' = shipped behavior, the default) controls where the line
+// sits relative to the outline:
+//   'center' — stroked centered on the outline, so half the width lies outside
+//              it. The shipped output; ops are byte-identical to pre-experiment.
+//   'inside' — EXPERIMENT (cutline-inside-test): clip to the UNBLED true outline
+//              first, then stroke the same path at 2× the width. The outer half
+//              is clipped away, so exactly 1× width remains visible INSIDE the
+//              outline and the line's outer edge IS the cut path. Hypothesis: a
+//              centered line eats ~half its width into each side of a notch
+//              wedge and nearly closes it, which the laser's CCD can't resolve;
+//              inside-aligned keeps the wedge open at its designed width.
+// Default miter join / miter limit in both modes (nothing sets them).
+function cutLineOpsFor(t, ax, ay, rotation, outline, lineWidthPts, align = 'center') {
   const map = slotPointMapper(t, ax, ay, rotation)
-  const ops = [pushGraphicsState(), setStrokingCmykColor(0, 0, 0, 1), setLineWidth(lineWidthPts)]
-  let any = false
-  if (outline) {
-    for (const sp of outline.subpaths) {
-      if (pushPolyOps(ops, flattenSubpath(sp), map)) any = true
+  const inside = align === 'inside'
+  const ops = [
+    pushGraphicsState(),
+    setStrokingCmykColor(0, 0, 0, 1),
+    setLineWidth(inside ? lineWidthPts * 2 : lineWidthPts),
+  ]
+  // The same polygons the clip uses, emitted once for 'center' and twice for
+  // 'inside' (once as the clip path, once as the stroked path).
+  const pushPaths = () => {
+    let any = false
+    if (outline) {
+      for (const sp of outline.subpaths) {
+        if (pushPolyOps(ops, flattenSubpath(sp), map)) any = true
+      }
+    }
+    if (!any) {
+      pushPolyOps(ops, [
+        [t.x, t.y],
+        [t.x + t.w, t.y],
+        [t.x + t.w, t.y + t.h],
+        [t.x, t.y + t.h],
+      ], map)
     }
   }
-  if (!any) {
-    pushPolyOps(ops, [
-      [t.x, t.y],
-      [t.x + t.w, t.y],
-      [t.x + t.w, t.y + t.h],
-      [t.x, t.y + t.h],
-    ], map)
+  if (inside) {
+    pushPaths()
+    ops.push(clip(), endPath())
   }
+  pushPaths()
   ops.push(stroke(), popGraphicsState())
   return ops
 }
@@ -450,6 +477,7 @@ export async function fillLayout({
   clipBleed = 18, // points of outward bleed kept when clipping (0.25" default)
   cutLines = true, // draw black cut lines the laser follows (laser only — see cutMode gate below)
   cutLineWidthMm = 1.5, // laser cut-line width; editable, confirm exact value at install
+  cutLineAlign = 'center', // EXPERIMENT (cutline-inside-test): 'center' (shipped) | 'inside'
   pieceLabels = true, // print each piece's type inside it (U5) for the cut team
   cutMode = null, // 'die' | 'laser' | null — shown on the stamp; laser also emits a DXF (U4)
   colorProfile = null, // detected artwork profile name (or 'No profile') — shown on the stamp
@@ -656,7 +684,13 @@ export async function fillLayout({
   const embArt = await out.embedPage(artPage)
   // Font for the piece-ID labels lives in the same doc we draw the sheet on.
   const labelFont = pieceLabels ? await out.embedFont(StandardFonts.Helvetica) : null
-  const LABEL_INSET = 2 * MM_TO_PT // hug ~2 mm inside the bottom cut edge (seam band)
+  // Hug ~2 mm inside the bottom cut edge (seam band). EXPERIMENT: an
+  // inside-aligned cut line puts its FULL width inside the outline instead of
+  // half, so 2 mm would leave only 0.5 mm of gap at the 1.5 mm default — push
+  // the label in by the line width plus 1.5 mm of clearance. Center mode keeps
+  // exactly 2 mm, so shipped output is unchanged.
+  const LABEL_INSET =
+    (cutLineAlign === 'inside' ? Math.max(2, cutLineWidthMm + 1.5) : 2) * MM_TO_PT
 
   for (const [type, slots] of slotsByType) {
     const t = templateByType.get(type).box
@@ -723,7 +757,9 @@ export async function fillLayout({
       // Die-cut runs skip it: the die cuts the shape, so a printed line is just
       // unwanted ink. cutMode null (e.g. tests) keeps the historical behavior.
       if (cutLines && cutMode !== 'die') {
-        page.pushOperators(...cutLineOpsFor(t, x, y, slot.rotation, outline, cutLineWidthMm * MM_TO_PT))
+        page.pushOperators(
+          ...cutLineOpsFor(t, x, y, slot.rotation, outline, cutLineWidthMm * MM_TO_PT, cutLineAlign),
+        )
       }
       // Laser DXF cut geometry — same contour as the printed cut line.
       if (cutMode === 'laser') {

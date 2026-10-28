@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import zlib from 'node:zlib'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, rgb } from 'pdf-lib'
 import {
   fillLayout,
   roundDownToSheet,
@@ -119,16 +119,20 @@ test('dropOppositeWoundHoles leaves clean outlines untouched', () => {
 
 const DIR = 'tests/fixtures/skate-style'
 const ART = 'test-files/Ambler_104_OSFM_Skate_5_Panel_Ucluelet_Aquarium_BLACK.pdf'
-const haveFixtures =
+// The style fixture is tracked in git; the artwork lives in gitignored
+// test-files/, so gate on the two separately — tests that can run on a
+// synthetic artwork page shouldn't skip just because the real art is absent.
+const haveStyle =
   existsSync(`${DIR}/style.json`) &&
   existsSync(`${DIR}/prenest.pdf`) &&
-  existsSync(`${DIR}/template.pdf`) &&
-  existsSync(ART)
+  existsSync(`${DIR}/template.pdf`)
+const haveFixtures = haveStyle && existsSync(ART)
 const skip = haveFixtures ? false : 'fixtures missing (skate-style fixture + Ambler art)'
+const skipStyle = haveStyle ? false : 'style fixture missing (tests/fixtures/skate-style)'
 
-const STYLE = haveFixtures ? JSON.parse(readFileSync(`${DIR}/style.json`, 'utf8')) : null
-const PRENEST = haveFixtures ? readFileSync(`${DIR}/prenest.pdf`) : null
-const TEMPLATE = haveFixtures ? readFileSync(`${DIR}/template.pdf`) : null
+const STYLE = haveStyle ? JSON.parse(readFileSync(`${DIR}/style.json`, 'utf8')) : null
+const PRENEST = haveStyle ? readFileSync(`${DIR}/prenest.pdf`) : null
+const TEMPLATE = haveStyle ? readFileSync(`${DIR}/template.pdf`) : null
 const ARTWORK = haveFixtures ? readFileSync(ART) : null
 const FABRIC = { name: 'No stretch', scale: 100 }
 const base = () => ({
@@ -235,6 +239,89 @@ test('fallback guard refuses when an unmatched piece box overlaps a neighbour', 
   const res = await fillLayout({ ...base(), style: broken, quantity: 12 })
   assert.ok(res.errors && res.errors.length)
   assert.ok(res.errors.some((e) => /visorTop/.test(e) && /visorBottom/.test(e)))
+})
+
+// ---- EXPERIMENT (cutline-inside-test): cut-line alignment ----------------
+// 'inside' strokes the cut line at 2× the width clipped to the true outline, so
+// exactly 1× shows INSIDE the line and its outer edge is the cut path (keeps
+// small notches open for the laser's CCD). 'center' is the shipped default and
+// must stay unchanged. These run on the tracked style fixture plus a synthetic
+// artwork page of the template's exact size, so they don't depend on the
+// gitignored real artwork and never silently skip.
+
+const TEMPLATE_PAGE = [1440, 1224] // the fixture template's page size
+
+// A stand-in artwork page: the template's exact size, filled edge to edge (a
+// page with no content stream can't be embedded, and real artwork covers the
+// whole artboard anyway).
+async function blankArtwork() {
+  const doc = await PDFDocument.create()
+  const p = doc.addPage(TEMPLATE_PAGE)
+  p.drawRectangle({ x: 0, y: 0, width: TEMPLATE_PAGE[0], height: TEMPLATE_PAGE[1], color: rgb(0.6, 0.7, 0.8) })
+  return doc.save()
+}
+
+const styleBase = (artworkBytes) => ({
+  prenestBytes: PRENEST,
+  templateBytes: TEMPLATE,
+  artworkBytes,
+  style: STYLE,
+  fabric: FABRIC,
+  quantity: 12,
+  guides: false,
+})
+
+// The q…Q blocks that stroke a cut line (pdf-lib writes one operator per line,
+// and each block opens with the pure-black stroking colour).
+function cutLineBlocks(text) {
+  return text
+    .split('\nq\n')
+    .filter((b) => b.startsWith('0 0 0 1 K\n'))
+    .map((b) => b.slice(0, b.indexOf('\nQ')).split('\n'))
+}
+
+const CUT_PT = 1.5 * (72 / 25.4) // the default 1.5 mm cut line, in points
+
+test('cut-line alignment defaults to center and leaves that output untouched', { skip: skipStyle }, async () => {
+  const artworkBytes = await blankArtwork()
+  const dflt = await fillLayout(styleBase(artworkBytes))
+  const ctr = await fillLayout({ ...styleBase(artworkBytes), cutLineAlign: 'center' })
+  const count = (t) => (inflateAllStreams(t).match(/0 0 0 1 K/g) || []).length
+  const n = count(dflt.pdfBytes)
+  assert.ok(n >= 84, `expected >=84 CMYK-black cut strokes, got ${n}`)
+  assert.equal(count(ctr.pdfBytes), n, 'explicit center must stroke exactly as many lines as the default')
+  // Center strokes at 1× the configured width and never clips the line.
+  for (const lines of cutLineBlocks(inflateAllStreams(ctr.pdfBytes))) {
+    assert.ok(Math.abs(Number(lines[1].split(' ')[0]) - CUT_PT) < 1e-9, `width op was ${lines[1]}`)
+    assert.ok(!lines.includes('W'), 'center mode must not clip the cut line')
+  }
+})
+
+test("'inside' clips to the outline then strokes 2× wide in the same q/Q block", { skip: skipStyle }, async () => {
+  const res = await fillLayout({ ...styleBase(await blankArtwork()), cutLineAlign: 'inside' })
+  const blocks = cutLineBlocks(inflateAllStreams(res.pdfBytes))
+  assert.ok(blocks.length >= 84, `expected >=84 cut-line blocks, got ${blocks.length}`)
+  for (const lines of blocks) {
+    // Line width is exactly 2× the configured width, so 1× survives the clip.
+    assert.ok(
+      Math.abs(Number(lines[1].split(' ')[0]) - CUT_PT * 2) < 1e-9,
+      `width op was ${lines[1]}, expected ${CUT_PT * 2}`,
+    )
+    // The clip (W n) precedes the stroke (S) inside this same block.
+    const w = lines.indexOf('W')
+    const s = lines.indexOf('S')
+    assert.ok(w > 0, 'inside mode must clip the cut line')
+    assert.equal(lines[w + 1], 'n', 'clip must be followed by endPath')
+    assert.ok(w < s, 'the clip must come before the stroke')
+  }
+})
+
+test("'center' and 'inside' produce identical DXF bytes", { skip: skipStyle }, async () => {
+  const artworkBytes = await blankArtwork()
+  const ctr = await fillLayout({ ...styleBase(artworkBytes), cutMode: 'laser', cutLineAlign: 'center' })
+  const ins = await fillLayout({ ...styleBase(artworkBytes), cutMode: 'laser', cutLineAlign: 'inside' })
+  assert.ok(ctr.dxf && ctr.dxf.length > 0, 'laser mode must emit a DXF')
+  assert.equal(ins.dxf, ctr.dxf, 'the cut-line alignment must not touch the DXF')
 })
 
 test('an unmatched piece that overlaps nobody does not false-refuse', { skip }, async () => {

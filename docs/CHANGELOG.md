@@ -2,6 +2,15 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- EXPERIMENTAL (2026-10-28, branch `cutline-inside-test` — NOT for main): optional
+  `cutLineAlign: 'center' | 'inside'` on `fillLayout`, default `'center'` (shipped
+  output byte-identical — verified by diffing inflated content streams). `'inside'`
+  clips each cut line to the unbled true outline and strokes it at 2× width, so 1×
+  shows inside the outline and the line's outer edge is the exact cut path — testing
+  whether the laser's CCD can then resolve small notches. Label inset becomes
+  `max(2 mm, cutLineWidthMm + 1.5 mm)` in inside mode only. DXF unaffected. A
+  temporary "Cut line position" select in RunScreen drives the A/B. Awaiting a
+  physical cut test; revert the branch if it fails.
 - fix (2026-07-20): destroy pdf.js docs when done — frees worker-side memory. The
   browser tab climbed to ~8GB per session because no `PDFDocumentProxy` was ever
   destroyed (pdf.js holds decoded fonts/images on its worker until an explicit
