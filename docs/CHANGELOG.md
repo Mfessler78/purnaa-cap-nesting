@@ -2,6 +2,15 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
+- EXPERIMENTAL (2026-10-28, branch `cutline-inside-test` — NOT for main): round line
+  join for the inside-aligned cut line. Inside mode strokes at 2× width, and the PDF
+  default miter join let an acute vertex spike up to 10× that width INTO the panel,
+  where the outline clip can't trim it — 60203's outline has vertices down to 19.9°,
+  which produced ~6 mm black needles (measured: 60 ink clusters of ~2.4 × 6 mm per
+  sheet). `cutLineOpsFor` now emits `1 j` in inside mode only; center mode sets no
+  join and its content stream stays byte-identical. The source geometry itself is
+  acute (edges as short as 0.09 mm) — the join bounds the overshoot, it doesn't
+  change the path. DXF untouched.
 - EXPERIMENTAL (2026-10-28, branch `cutline-inside-test` — NOT for main): optional
   `cutLineAlign: 'center' | 'inside'` on `fillLayout`, default `'center'` (shipped
   output byte-identical — verified by diffing inflated content streams). `'inside'`

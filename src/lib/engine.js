@@ -11,6 +11,8 @@ import {
   clip,
   endPath,
   setLineWidth,
+  setLineJoin,
+  LineJoinStyle,
   setStrokingCmykColor,
   stroke,
 } from 'pdf-lib'
@@ -346,7 +348,12 @@ function toPdf14(bytes) {
 //              centered line eats ~half its width into each side of a notch
 //              wedge and nearly closes it, which the laser's CCD can't resolve;
 //              inside-aligned keeps the wedge open at its designed width.
-// Default miter join / miter limit in both modes (nothing sets them).
+// Center mode sets no join, so the PDF defaults (miter, limit 10) apply exactly
+// as they always have. Inside mode asks for a ROUND join: it strokes at 2× the
+// width, and at a notch's acute apex the default miter tip reaches up to 10× the
+// stroke width — pointing INTO the panel, where the outline clip can't trim it,
+// so narrow V-notches grew long black spikes. A round join caps the apex at the
+// line's own half-width. The miter limit is never set in either mode.
 function cutLineOpsFor(t, ax, ay, rotation, outline, lineWidthPts, align = 'center') {
   const map = slotPointMapper(t, ax, ay, rotation)
   const inside = align === 'inside'
@@ -355,6 +362,7 @@ function cutLineOpsFor(t, ax, ay, rotation, outline, lineWidthPts, align = 'cent
     setStrokingCmykColor(0, 0, 0, 1),
     setLineWidth(inside ? lineWidthPts * 2 : lineWidthPts),
   ]
+  if (inside) ops.push(setLineJoin(LineJoinStyle.Round))
   // The same polygons the clip uses, emitted once for 'center' and twice for
   // 'inside' (once as the clip path, once as the stroked path).
   const pushPaths = () => {

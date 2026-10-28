@@ -294,6 +294,7 @@ test('cut-line alignment defaults to center and leaves that output untouched', {
   for (const lines of cutLineBlocks(inflateAllStreams(ctr.pdfBytes))) {
     assert.ok(Math.abs(Number(lines[1].split(' ')[0]) - CUT_PT) < 1e-9, `width op was ${lines[1]}`)
     assert.ok(!lines.includes('W'), 'center mode must not clip the cut line')
+    assert.ok(!lines.includes('1 j'), 'center mode must leave the default join')
   }
 })
 
@@ -313,6 +314,11 @@ test("'inside' clips to the outline then strokes 2× wide in the same q/Q block"
     assert.ok(w > 0, 'inside mode must clip the cut line')
     assert.equal(lines[w + 1], 'n', 'clip must be followed by endPath')
     assert.ok(w < s, 'the clip must come before the stroke')
+    // Round join (1 j): the doubled width would otherwise let the default
+    // miter spike a notch's apex up to 10× the width into the panel.
+    const j = lines.indexOf('1 j')
+    assert.ok(j > 0, 'inside mode must set a round line join')
+    assert.ok(j < s, 'the join must be set before the stroke')
   }
 })
 
