@@ -241,13 +241,14 @@ test('fallback guard refuses when an unmatched piece box overlaps a neighbour', 
   assert.ok(res.errors.some((e) => /visorTop/.test(e) && /visorBottom/.test(e)))
 })
 
-// ---- EXPERIMENT (cutline-inside-test): cut-line alignment ----------------
-// 'inside' strokes the cut line at 2× the width clipped to the true outline, so
-// exactly 1× shows INSIDE the line and its outer edge is the cut path (keeps
-// small notches open for the laser's CCD). 'center' is the shipped default and
-// must stay unchanged. These run on the tracked style fixture plus a synthetic
-// artwork page of the template's exact size, so they don't depend on the
-// gitignored real artwork and never silently skip.
+// ---- cut-line alignment ---------------------------------------------------
+// The cut line is stroked at 2× the width clipped to the true outline, so
+// exactly 1× shows INSIDE the line and its outer edge is the cut path — that
+// keeps small notches open for the laser's CCD. This is the DEFAULT; 'center'
+// (the pre-2026-10-28 behavior) remains available as a code-level fallback.
+// These run on the tracked style fixture plus a synthetic artwork page of the
+// template's exact size, so they don't depend on the gitignored real artwork
+// and never silently skip.
 
 const TEMPLATE_PAGE = [1440, 1224] // the fixture template's page size
 
@@ -282,24 +283,24 @@ function cutLineBlocks(text) {
 
 const CUT_PT = 1.5 * (72 / 25.4) // the default 1.5 mm cut line, in points
 
-test('cut-line alignment defaults to center and leaves that output untouched', { skip: skipStyle }, async () => {
-  const artworkBytes = await blankArtwork()
-  const dflt = await fillLayout(styleBase(artworkBytes))
-  const ctr = await fillLayout({ ...styleBase(artworkBytes), cutLineAlign: 'center' })
-  const count = (t) => (inflateAllStreams(t).match(/0 0 0 1 K/g) || []).length
-  const n = count(dflt.pdfBytes)
+test('center alignment stays available as an explicit fallback', { skip: skipStyle }, async () => {
+  const ctr = await fillLayout({ ...styleBase(await blankArtwork()), cutLineAlign: 'center' })
+  const text = inflateAllStreams(ctr.pdfBytes)
+  const n = (text.match(/0 0 0 1 K/g) || []).length
   assert.ok(n >= 84, `expected >=84 CMYK-black cut strokes, got ${n}`)
-  assert.equal(count(ctr.pdfBytes), n, 'explicit center must stroke exactly as many lines as the default')
-  // Center strokes at 1× the configured width and never clips the line.
-  for (const lines of cutLineBlocks(inflateAllStreams(ctr.pdfBytes))) {
+  // Center strokes at 1× the configured width, never clips the line, and leaves
+  // the PDF default join — the behavior shipped before 2026-10-28.
+  for (const lines of cutLineBlocks(text)) {
     assert.ok(Math.abs(Number(lines[1].split(' ')[0]) - CUT_PT) < 1e-9, `width op was ${lines[1]}`)
     assert.ok(!lines.includes('W'), 'center mode must not clip the cut line')
     assert.ok(!lines.includes('1 j'), 'center mode must leave the default join')
   }
 })
 
-test("'inside' clips to the outline then strokes 2× wide in the same q/Q block", { skip: skipStyle }, async () => {
-  const res = await fillLayout({ ...styleBase(await blankArtwork()), cutLineAlign: 'inside' })
+test('the cut line defaults to inside: clipped, 2× wide, round join', { skip: skipStyle }, async () => {
+  // No cutLineAlign passed — this asserts the DEFAULT, which is what the Run
+  // screen now produces (it has no alignment control).
+  const res = await fillLayout(styleBase(await blankArtwork()))
   const blocks = cutLineBlocks(inflateAllStreams(res.pdfBytes))
   assert.ok(blocks.length >= 84, `expected >=84 cut-line blocks, got ${blocks.length}`)
   for (const lines of blocks) {
@@ -311,13 +312,13 @@ test("'inside' clips to the outline then strokes 2× wide in the same q/Q block"
     // The clip (W n) precedes the stroke (S) inside this same block.
     const w = lines.indexOf('W')
     const s = lines.indexOf('S')
-    assert.ok(w > 0, 'inside mode must clip the cut line')
+    assert.ok(w > 0, 'the default (inside) must clip the cut line')
     assert.equal(lines[w + 1], 'n', 'clip must be followed by endPath')
     assert.ok(w < s, 'the clip must come before the stroke')
     // Round join (1 j): the doubled width would otherwise let the default
     // miter spike a notch's apex up to 10× the width into the panel.
     const j = lines.indexOf('1 j')
-    assert.ok(j > 0, 'inside mode must set a round line join')
+    assert.ok(j > 0, 'the default (inside) must set a round line join')
     assert.ok(j < s, 'the join must be set before the stroke')
   }
 })

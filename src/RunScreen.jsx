@@ -77,7 +77,6 @@ export default function RunScreen() {
   const [clipToOutline, setClipToOutline] = useState(true)
   const [bleedIn, setBleedIn] = useState(0.25) // outward bleed kept when clipping, inches
   const [cutLineMm, setCutLineMm] = useState(1.5) // black cut-line width the laser follows, mm
-  const [cutLineAlign, setCutLineAlign] = useState('center') // TEST (cutline-inside-test): 'center' | 'inside'
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState(null) // { passed: [], blocking: [] }
   const [result, setResult] = useState(null) // { bytes, pdf, rounded, exportBytes }
@@ -195,7 +194,6 @@ export default function RunScreen() {
         clipToOutline,
         clipBleed: Math.max(0, Number(bleedIn) || 0) * 72,
         cutLineWidthMm: Math.max(0, Number(cutLineMm) || 0),
-        cutLineAlign, // TEST (cutline-inside-test) — in `common` so preview and export match
         colorProfile: colorCheck.profileLabel || null,
       }
       setProgress('Checking artwork and placing pieces… (large artwork can take a moment)')
@@ -241,11 +239,14 @@ export default function RunScreen() {
         }
         passed.unshift(
           `Cut mode: ${MODE_LABELS[mode] || mode}`,
-          mode === 'die'
-            ? 'Die cut: no printed cut line (the die cuts the shape)'
-            : `Laser cut line: ${Math.max(0, Number(cutLineMm) || 0)} mm printed around each piece` +
-              // TEST (cutline-inside-test): show which alignment this run used.
-              (cutLineAlign === 'inside' ? ' — INSIDE the outline (TEST)' : ''),
+          ...(mode === 'die'
+            ? ['Die cut: no printed cut line (the die cuts the shape)']
+            : [
+                `Laser cut line: ${Math.max(0, Number(cutLineMm) || 0)} mm printed around each piece`,
+                // The line sits wholly inside the outline, so its outer edge is
+                // the cut path and notches stay open at their designed width.
+                'Cut line drawn inside the piece outline — notches stay clear for the laser',
+              ]),
           ...(styleMeta.templates.length > 1
             ? [`Selected template "${variant.id}" by artwork size (${res.artboard})`]
             : []),
@@ -262,7 +263,6 @@ export default function RunScreen() {
           rounded: res.rounded,
           copies: res.copies,
           mode,
-          align: cutLineAlign, // TEST (cutline-inside-test) — tags the export filename
           exportBytes: exportRes.pdfBytes,
           dxf: exportRes.dxf || null,
         })
@@ -283,10 +283,7 @@ export default function RunScreen() {
     try {
       await tick()
       const modeTag = result.mode ? ` ${result.mode.toUpperCase()}` : ''
-      // TEST (cutline-inside-test): tag the filename so the two A/B sheets can't
-      // be mixed up at the laser (center mode keeps the shipped name).
-      const alignTag = result.align === 'inside' ? ' CUTLINE-INSIDE' : ''
-      const baseName = `${styleId} ${fabricName} qty${result.rounded}${modeTag}${alignTag}`
+      const baseName = `${styleId} ${fabricName} qty${result.rounded}${modeTag}`
       saveBlob(`${baseName} PRINT.pdf`, new Blob([result.exportBytes], { type: 'application/pdf' }))
       // Laser mode also drops the DXF the cutter reads, alongside the PDF —
       // staggered a beat so the second download isn't coalesced with the first.
@@ -412,7 +409,7 @@ export default function RunScreen() {
           </label>
         )}
         {cutMode !== 'die' && (
-          <label title="Black cut line the laser follows, printed around every piece. Confirm the exact width at the laser install; 1.5 mm is the planned default. Die-cut runs never print a cut line.">
+          <label title="Black cut line the laser follows, printed around every piece. It is drawn inside the piece outline so notches stay clear for the laser, and its outer edge is the cut path. Die-cut runs never print a cut line.">
             Cut line (mm)
             <input
               type="number"
@@ -424,24 +421,6 @@ export default function RunScreen() {
                 resetOutput()
               }}
             />
-          </label>
-        )}
-        {/* TEST (cutline-inside-test) — TEMPORARY A/B control for the physical
-            laser test. Delete this whole label (and cutLineAlign everywhere) if
-            the experiment isn't adopted. */}
-        {cutMode !== 'die' && (
-          <label title="TEST ONLY. Center = shipped behavior (line straddles the outline). Inside = the line sits wholly inside the outline, so its outer edge is the exact cut path — keeps small notches open for the laser's CCD.">
-            Cut line position
-            <select
-              value={cutLineAlign}
-              onChange={(e) => {
-                setCutLineAlign(e.target.value)
-                resetOutput()
-              }}
-            >
-              <option value="center">Center (current)</option>
-              <option value="inside">Inside — TEST</option>
-            </select>
           </label>
         )}
         <button

@@ -334,27 +334,31 @@ function toPdf14(bytes) {
 // by cutMode at the call site (CLAUDE_CODE_LASER_VS_DIECUT.md). We generate it
 // from the same outline the clip uses (true outline, no bleed — the bleed is
 // printed past the cut), falling back to the piece box when no outline matched.
-// CMYK 0,0,0,1 is pure (non-rich) black; emit AFTER the clip is popped so the
-// full line width shows, not just the inner half.
+// CMYK 0,0,0,1 is pure (non-rich) black. The line is emitted after the artwork's
+// clip is popped, so the cut line is never trimmed by the artwork's clip — it
+// carries its own (see 'inside' below).
 //
-// `align` ('center' = shipped behavior, the default) controls where the line
-// sits relative to the outline:
-//   'center' — stroked centered on the outline, so half the width lies outside
-//              it. The shipped output; ops are byte-identical to pre-experiment.
-//   'inside' — EXPERIMENT (cutline-inside-test): clip to the UNBLED true outline
-//              first, then stroke the same path at 2× the width. The outer half
-//              is clipped away, so exactly 1× width remains visible INSIDE the
-//              outline and the line's outer edge IS the cut path. Hypothesis: a
-//              centered line eats ~half its width into each side of a notch
-//              wedge and nearly closes it, which the laser's CCD can't resolve;
-//              inside-aligned keeps the wedge open at its designed width.
-// Center mode sets no join, so the PDF defaults (miter, limit 10) apply exactly
-// as they always have. Inside mode asks for a ROUND join: it strokes at 2× the
-// width, and at a notch's acute apex the default miter tip reaches up to 10× the
-// stroke width — pointing INTO the panel, where the outline clip can't trim it,
-// so narrow V-notches grew long black spikes. A round join caps the apex at the
-// line's own half-width. The miter limit is never set in either mode.
-function cutLineOpsFor(t, ax, ay, rotation, outline, lineWidthPts, align = 'center') {
+// `align` controls where the line sits relative to the outline:
+//   'inside' — THE DEFAULT, and what the laser is set up for. Clip to the UNBLED
+//              true outline, then stroke the same path at 2× the width: the outer
+//              half is clipped away, so exactly 1× width remains visible INSIDE
+//              the outline and the line's OUTER EDGE is the cut path. A centered
+//              line instead eats half its width into each side of a notch and all
+//              but closes it — these outlines have notches as narrow as 1.6 mm,
+//              which a 1.5 mm centered line reduces to ~0.1 mm, too little for the
+//              laser's CCD to resolve. Inside-aligned keeps the notch at its
+//              designed width.
+//   'center' — the behavior shipped before 2026-10-28: stroked centered on the
+//              outline, half the width lying outside it. Kept as a code-level
+//              fallback (no UI); pass it explicitly to reproduce old output.
+// Inside mode also asks for a ROUND join: at 2× width the default miter tip
+// reaches up to 10× the stroke width past an acute vertex — pointing INTO the
+// panel, where the outline clip can't trim it, so acute vertices grew long black
+// spikes (60203's outline has vertices down to 19.9°). A round join caps the apex
+// at the line's own half-width. Center mode sets no join, so the PDF defaults
+// (miter, limit 10) apply there exactly as they always have. The miter limit is
+// never set in either mode.
+function cutLineOpsFor(t, ax, ay, rotation, outline, lineWidthPts, align = 'inside') {
   const map = slotPointMapper(t, ax, ay, rotation)
   const inside = align === 'inside'
   const ops = [
@@ -485,7 +489,7 @@ export async function fillLayout({
   clipBleed = 18, // points of outward bleed kept when clipping (0.25" default)
   cutLines = true, // draw black cut lines the laser follows (laser only — see cutMode gate below)
   cutLineWidthMm = 1.5, // laser cut-line width; editable, confirm exact value at install
-  cutLineAlign = 'center', // EXPERIMENT (cutline-inside-test): 'center' (shipped) | 'inside'
+  cutLineAlign = 'inside', // 'inside' (default — keeps notches clear) | 'center' (pre-2026-10-28)
   pieceLabels = true, // print each piece's type inside it (U5) for the cut team
   cutMode = null, // 'die' | 'laser' | null — shown on the stamp; laser also emits a DXF (U4)
   colorProfile = null, // detected artwork profile name (or 'No profile') — shown on the stamp
@@ -692,11 +696,11 @@ export async function fillLayout({
   const embArt = await out.embedPage(artPage)
   // Font for the piece-ID labels lives in the same doc we draw the sheet on.
   const labelFont = pieceLabels ? await out.embedFont(StandardFonts.Helvetica) : null
-  // Hug ~2 mm inside the bottom cut edge (seam band). EXPERIMENT: an
-  // inside-aligned cut line puts its FULL width inside the outline instead of
-  // half, so 2 mm would leave only 0.5 mm of gap at the 1.5 mm default — push
-  // the label in by the line width plus 1.5 mm of clearance. Center mode keeps
-  // exactly 2 mm, so shipped output is unchanged.
+  // Hug inside the bottom cut edge (seam band). An inside-aligned cut line puts
+  // its FULL width inside the outline instead of half, so a flat 2 mm would
+  // leave only 0.5 mm of gap at the 1.5 mm default — push the label in by the
+  // line width plus 1.5 mm of clearance. Center mode keeps exactly 2 mm, which
+  // is what it has always used.
   const LABEL_INSET =
     (cutLineAlign === 'inside' ? Math.max(2, cutLineWidthMm + 1.5) : 2) * MM_TO_PT
 
