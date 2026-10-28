@@ -9,7 +9,13 @@
 > Companion docs: `SPEC.md` (full functional spec),
 > `CLAUDE_CODE_LASER_VS_DIECUT.md` (cut-line export rule).
 >
-> Last updated: 2026-07-20 (pdf.js document lifecycle: `loadPdfPage` now returns a
+> Last updated: 2026-10-28 (laser cut line: it is now stroked INSIDE the piece
+> outline — clipped to the unbled outline and stroked at 2× width with a round
+> join, so exactly 1× shows inside and the line's OUTER EDGE is the cut path.
+> Centred strokes were closing notches narrower than ~3 mm. The DXF is unchanged
+> (same contour, same fabric-stretch scale). `fillLayout`'s `cutLineAlign` keeps
+> `'center'` as a code-level fallback; there is no UI control. See §2, §5.6.
+> Previous: 2026-07-20 (pdf.js document lifecycle: `loadPdfPage` now returns a
 > `destroy()` handle and every caller releases its doc when done — see the
 > pdfRender row in §4. Fixes the ~8GB-per-session tab memory leak. Also corrected
 > `pdfPaths.js`'s dependency (pdf-lib, not pdfjs-dist) and marked two §6 cleanup
@@ -53,6 +59,7 @@ Style on disk (styles/<NAME>/)          Customer artwork PDF        Quantity
   │  2. Refuse if artwork page size ≠ template page size (no scale-to-fit) │
   │  3. Place artwork into each slot, rotated per-slot (from the map)      │
   │  4. Clip to each piece's true outline + tunable bleed margin           │
+  │  4b. Laser only: stroke the black cut line INSIDE that outline         │
   │  5. Embed artwork ONCE, share across all placements (size control)     │
   │  6. Nest whole sheets only (round DOWN; remainder → regular format)    │
   │  6b. Print a per-piece ID label inside each panel (cut-team reference) │
@@ -92,6 +99,25 @@ end. Everything else is 1:1.
 own nesting utility, so the flow was removed from main; the complete tool — `RunEntry.jsx`,
 `TileExportScreen.jsx`, `src/lib/tileInspect.js` / `tileMath.js` / `tileExport.js`, their
 tests, and the DXF Tile Export tutorial — is preserved on the fork branch `dxf-tile-tool`.
+
+**The printed cut line (step 4b, laser runs only).** `cutLineOpsFor` in `engine.js`
+strokes a pure-black (CMYK 0,0,0,1) line around every placed piece, from the same true
+outline the clip uses (unbled), falling back to the piece box when no outline matched.
+It is **stroked inside the outline**: the ops clip to the unbled outline, then stroke
+that same path at **2× the configured width**, so the outer half is clipped away and
+exactly 1× remains visible *inside* the shape — the line's **outer edge is the cut
+path**. A centred stroke (the behavior before 2026-10-28) instead ate half its width
+into each side of every notch; with notches as narrow as 1.6 mm in production outlines,
+a 1.5 mm centred line closed them to ~0.1 mm and the laser's CCD could not find them.
+Inside mode also sets a **round line join** — at the doubled width the PDF default
+miter reaches up to 10× the width past an acute vertex, pointing *into* the panel where
+the clip cannot trim it (60203's outline has vertices down to 19.9°, which produced
+~6 mm black needles). The miter limit is never set. `fillLayout`'s `cutLineAlign`
+accepts `'center'` to reproduce the old output, but there is **no UI control** — the Run
+screen always produces the inside-aligned line and says so in its verification list.
+The **DXF is built separately** (`placedCutPolys` → `buildDxf`) from the same contour
+and is **unaffected** by alignment — byte-identical either way — and it carries the same
+fabric-stretch scale as the print.
 
 **Per-piece ID label (step 6b, distinct from the corner stamp).** Separately from the
 single `STYLE | FABRIC | QTY` corner stamp, `engine.js` prints each panel's `piece_type`
@@ -286,10 +312,15 @@ These are the reason the output is correct. Full rationale in
    in; grow by the tunable bleed margin so each piece keeps its own print bleed.
 5. **Embed artwork once, share across all placements.** This is the fix for the old ~6×
    file-size bug. Any fill/embed change must preserve it.
-6. **Cut line printed for laser only; other guides reference-only.** The laser follows a
-   black cut line printed around each piece, so laser exports keep it. Die-cut runs do
-   **not** print it (the die cuts the shape; a printed line is just unwanted ink) — gated
-   by `cutMode === 'die'` in `engine.js`. Stitch lines/text/fills are stripped from output.
+6. **Cut line printed for laser only, stroked INSIDE the outline; other guides
+   reference-only.** The laser follows a black cut line printed around each piece, so
+   laser exports keep it. It is stroked **inside** the piece outline (clip to the unbled
+   outline, stroke at 2× width, round join) so the line's **outer edge is the cut path**
+   and notches stay open at their designed width — a centred stroke closed notches
+   narrower than ~3 mm. The DXF carries the **same contour**, independent of the stroke.
+   Die-cut runs do **not** print the line (the die cuts the shape; a printed line is just
+   unwanted ink) — gated by `cutMode === 'die'` in `engine.js`. Stitch lines/text/fills
+   are stripped from output.
 7. **Inputs keep vectors intact — and the app does not flatten, period.** The
    export is always the direct-vector composition. Flattening heavy layered
    artwork is a customer-side Photoshop step (Layer → Flatten Image), done with

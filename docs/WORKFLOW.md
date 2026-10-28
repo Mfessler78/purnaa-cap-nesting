@@ -62,7 +62,9 @@ fabric stretch, and exports.
    270°). Two slots of the same piece can be turned differently.
 4. **Cut lines print on laser runs; other guides never print.** On a **Laser** run
    the tool draws a **black cut line** (1.5 mm) around every piece in the export —
-   the laser follows it (a CUT.dxf downloads alongside the PDF). On a **Die cut**
+   the laser follows it (a CUT.dxf downloads alongside the PDF). The line is drawn
+   **inside** each piece's outline, so its outer edge is the real cut path and the
+   notches stay open at their designed width for the laser's camera. On a **Die cut**
    run no cut line is printed at all — the die cuts the shape, so a printed line
    would just be unwanted ink. Stitch lines, instructional text, and color fills
    are for humans only: keep them on their own layers; the tool ignores them and
@@ -234,8 +236,10 @@ minutes.
    1.5 mm.** These are correct for almost every job; you don't normally change them.
    (Bleed grows each clip slightly outward so every piece keeps its own print bleed.
    Cut line is the black outline the laser follows, drawn around every piece on
-   Laser runs — on Die cut runs the field is hidden and no line is printed. The
-   exact width is confirmed at the laser install.)
+   Laser runs — on Die cut runs the field is hidden and no line is printed. It is
+   drawn just inside each piece's outline so notches stay clear for the laser; the
+   verification list confirms this on every laser run. The exact width is confirmed
+   at the laser install.)
 6. Click **Fill layout** and wait. A spinner shows progress; large artwork can take a
    moment — that's normal, not frozen.
 

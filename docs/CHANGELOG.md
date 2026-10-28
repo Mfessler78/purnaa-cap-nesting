@@ -2,24 +2,20 @@
 
 One line per change, newest first. See `ARCHITECTURE.md` for structure.
 
-- EXPERIMENTAL (2026-10-28, branch `cutline-inside-test` — NOT for main): round line
-  join for the inside-aligned cut line. Inside mode strokes at 2× width, and the PDF
-  default miter join let an acute vertex spike up to 10× that width INTO the panel,
-  where the outline clip can't trim it — 60203's outline has vertices down to 19.9°,
-  which produced ~6 mm black needles (measured: 60 ink clusters of ~2.4 × 6 mm per
-  sheet). `cutLineOpsFor` now emits `1 j` in inside mode only; center mode sets no
-  join and its content stream stays byte-identical. The source geometry itself is
-  acute (edges as short as 0.09 mm) — the join bounds the overshoot, it doesn't
-  change the path. DXF untouched.
-- EXPERIMENTAL (2026-10-28, branch `cutline-inside-test` — NOT for main): optional
-  `cutLineAlign: 'center' | 'inside'` on `fillLayout`, default `'center'` (shipped
-  output byte-identical — verified by diffing inflated content streams). `'inside'`
-  clips each cut line to the unbled true outline and strokes it at 2× width, so 1×
-  shows inside the outline and the line's outer edge is the exact cut path — testing
-  whether the laser's CCD can then resolve small notches. Label inset becomes
-  `max(2 mm, cutLineWidthMm + 1.5 mm)` in inside mode only. DXF unaffected. A
-  temporary "Cut line position" select in RunScreen drives the A/B. Awaiting a
-  physical cut test; revert the branch if it fails.
+- fix (2026-10-28): the laser cut line is now drawn INSIDE the piece outline, with a
+  round join, so notches stay clear for the laser. It used to be stroked centred on
+  the outline, which ate half the line width into each side of a notch — these
+  outlines have notches as narrow as 1.6 mm, so a 1.5 mm centred line closed them to
+  ~0.1 mm and the laser's CCD couldn't find them. The line is now clipped to the
+  unbled true outline and stroked at 2× width, leaving exactly 1× visible inside the
+  outline: the line's OUTER EDGE is the cut path. The round join is needed because at
+  the doubled width the PDF default miter spikes an acute vertex up to 10× the width
+  into the panel (60203's outline has vertices down to 19.9°, which produced ~6 mm
+  black needles). The piece-ID label inset grows to `max(2 mm, cutLineWidthMm + 1.5 mm)`
+  to keep its clearance. The DXF is unchanged — same contour, byte-identical. Cut-line
+  width still defaults to 1.5 mm, and the Run screen's verification list now states
+  that the line is drawn inside the outline. `fillLayout`'s `cutLineAlign` accepts
+  `'center'` to reproduce the old output (no UI; code-level fallback only).
 - fix (2026-07-20): destroy pdf.js docs when done — frees worker-side memory. The
   browser tab climbed to ~8GB per session because no `PDFDocumentProxy` was ever
   destroyed (pdf.js holds decoded fonts/images on its worker until an explicit

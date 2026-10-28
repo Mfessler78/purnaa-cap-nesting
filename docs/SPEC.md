@@ -107,14 +107,16 @@ Engine, for each pre-nest slot needed:
   and downloads straight from the browser. Non-cut guide layers/fills are removed;
   vectors preserved. **Black cut lines are printed for LASER runs only** (the
   laser follows them; a die-cut run prints no cut line — the die cuts the shape);
-  see `CLAUDE_CODE_LASER_VS_DIECUT.md`. Laser runs also download a CUT.dxf with
-  the cut contours alongside the PDF.
+  see `CLAUDE_CODE_LASER_VS_DIECUT.md`. The cut line is stroked **inside** the
+  piece outline — its outer edge is the cut path — so notches stay open at their
+  designed width instead of being closed by a centred stroke. Laser runs also
+  download a CUT.dxf with the same cut contours alongside the PDF.
 
 ## Hard rules (restate; do not violate)
 - Match by piece_type; replicate one source into all matching slots.
 - Rotation is per-slot, read from the map.
 - Never scale to fit; fabric stretch is the only scaling, applied globally at export.
-- Black cut lines ARE printed on laser exports (the laser follows them); die-cut exports print NO cut line — see `CLAUDE_CODE_LASER_VS_DIECUT.md`. Other guides (stitch lines, text, color fills) never print.
+- Black cut lines ARE printed on laser exports (the laser follows them), stroked inside the piece outline so the line's outer edge is the cut path; die-cut exports print NO cut line — see `CLAUDE_CODE_LASER_VS_DIECUT.md`. Other guides (stitch lines, text, color fills) never print.
 - The app never flattens artwork; direct-vector export is the only path.
 - Keep UI minimal; make the human-verification steps clear.
 - Local only: no cloud, no auth, no deployment.
